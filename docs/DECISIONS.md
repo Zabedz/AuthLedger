@@ -307,3 +307,46 @@ full-page redirects. Deferred: a per-provider allowlist of redirect origins if
 more clients are added, and graceful retry (rather than a one-shot error) when
 two genuinely simultaneous first-logins collide on the identity unique
 constraint (safe today, since a retry links to the now-existing identity).
+
+## ADR-017: Authorization: RBAC, deny-by-default, and a money policy module (2026-07-13)
+
+Context: M5 adds authorization before payments so the money endpoints are born
+gated. It must enforce coarse role permissions, express finer money rules
+(ownership, amount ceilings), and make an endpoint added without a policy fail
+closed rather than open.
+Decision: RBAC splits by change cadence. The role x action matrix is reference
+data seeded in migration 0006 (roles, permissions, role_permissions), versioned
+with the code that enforces it and mirrored by the PERMISSION_ACTIONS and
+ROLE_NAMES literal types in domain/authz.ts; which user holds which role is
+runtime data in user_roles. Permissions resolve per request in the session-auth
+preHandler (loadPermissions joins user_roles to role_permissions), so a grant or
+revoke takes effect on the next request without reissuing the session, and
+request.auth carries the permission set. Enforcement is two layers: every /api
+route declares a policy in its Fastify config ('public', 'self', or
+{ permission }), and an onRoute/onReady guard (authz-guard.ts) refuses to boot
+if any route lacks one, so a new endpoint fails the deny-by-default check (and
+CI) instead of defaulting to open; requirePermission is the request-time check
+of the same action. The authorize(action) helper bundles the preHandler and the
+policy config so the enforced and declared actions cannot drift. The admin
+surface lives at /api/admin (user list, role grant/revoke, audit read, revoke
+another user's sessions), each gated by its permission and audited. The first
+admin is granted at boot from ADMIN_EMAIL (idempotent, a no-op until that
+account exists). Money authorization that a single permission cannot express
+(ownership, a refund ceiling above which a second capability is required) is a
+separate module of pure functions (domain/policy.ts) returning a decision plus a
+reason for the audit log; capabilities are injected, so the functions stay
+database-free and unit-tested, and the money cells are finalized against real
+request shapes as the M6/M7 endpoints land.
+Consequences: 'self' is a policy class meaning session-required-own-resource; it
+asserts a session (requireAuth) but the ownership check stays in each handler
+(the routes act only on req.auth.user), so 'self' is a classification, not extra
+enforcement. Every authenticated request runs one extra join to load
+permissions, accepted for now over lazy loading. Money capabilities are a second
+vocabulary from RBAC permission actions until M6 wires them into the permissions
+table. Deferred: auditing 403 denials, pagination cursors on the admin lists
+(offset paging for now), and a lazy per-request permission load if the eager
+join shows up in profiling. M6 obligations when it calls the policy module:
+seed the money capabilities as permission rows and collapse MoneyCapability into
+PermissionAction, confirm the refund ceiling value (possibly config, not
+source), and validate a refund amount is positive before the policy check (the
+pure function does not range-check its input).
