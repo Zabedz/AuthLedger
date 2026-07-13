@@ -85,9 +85,9 @@ Acceptance:
   or foreign Origin header on a state-changing request.
 - Password storage matches OWASP guidance (argon2id, per-user salt, no
   length truncation); asserted by tests, not convention.
-- Session cookie flags (HttpOnly, Secure, SameSite=Lax) asserted in an e2e
-  test against the composed stack in CI, and against the test environment
-  when it is up.
+- Session cookie flags (HttpOnly, SameSite=Lax) asserted in a Playwright e2e
+  driving the real SPA against the composed stack in CI (API plus built SPA
+  plus Postgres); Secure asserted by unit test since the e2e runs over HTTP.
 - Authenticating issues a new session id (fixation defense), proven by test.
 - Log redaction of authorization headers, cookies, and token fields is
   configured and covered by a test that fails if a secret reaches a log line.

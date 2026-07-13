@@ -131,3 +131,29 @@ round-trip assertion moves to M2's e2e, where login sets a real session
 cookie through the deployed topology.
 Consequences: PLAN.md M1 acceptance is amended accordingly; the cookie test
 gains teeth at M2 instead of testing a synthetic endpoint at M1.
+
+## ADR-010: Identity core shape (2026-07-13)
+
+Context: M2 builds registration, login, sessions, and the audit log by hand
+on the primitives from RESEARCH.md, and the shape has to carry M4 (MFA,
+OAuth) and M5 (authorization) without a rewrite.
+Decision: domain logic is plain functions taking a Kysely instance
+(passwords, sessions, accounts, audit), Fastify plugins own request-scoped
+concerns (session-auth resolves the cookie into request.auth on every
+request; origin-check is the CSRF gate), and routes are thin. Sessions are
+opaque: a 256-bit random token in an HttpOnly SameSite=Lax cookie, only its
+SHA-256 stored, with a 30-day absolute and 14-day idle expiry. Passwords use
+argon2id at the OWASP parameters, asserted by test. Login rotates the session
+(fixation defense) and answers wrong-password, unknown-email, and locked
+identically (no oracle); registration's 409 is a known enumeration vector
+closed in M3 with verification emails. No repository layer yet: the db-in,
+data-out functions are the seam, revisited if M6/M7 table growth makes it
+pay.
+Consequences: M4's half-authenticated MFA state and OAuth provider identities
+are deferred, not designed in; they extend the sessions and users tables by
+migration. M5 hooks role checks into the same preHandler chain after
+session-auth. Load-bearing invariant to preserve: a row in `sessions` means
+fully authenticated, which is what makes requireAuth safe. M4's
+password-ok-awaiting-TOTP state must therefore be a separate short-lived
+challenge token (its own table, like M3's reset tokens), never a pending flag
+on a session row.

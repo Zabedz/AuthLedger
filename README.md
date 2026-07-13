@@ -30,6 +30,7 @@ Requirements: Node 24+, Docker with Compose.
 ```sh
 make setup   # copy .env.example to .env, install, build shared
 make dev     # start Postgres and Mailpit, then run api and web in watch mode
+make seed    # migrate and insert the fixed demo user (idempotent)
 ```
 
 The API listens on 8000, the web dev server on 5173 and proxies `/api` to the
