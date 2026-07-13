@@ -13,6 +13,7 @@ import { registerSessionAuth } from './plugins/session-auth.js';
 import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes, type HealthDeps } from './routes/health.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 export interface ServerDeps {
   health: HealthDeps;
@@ -64,6 +65,13 @@ export async function buildServer(
   await app.register(healthRoutes, { prefix: '/api', deps: deps.health });
   await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
+  // The SES webhook is only safe once a topic is pinned (a valid SNS signature
+  // alone does not bind a message to our topic), so in production the route
+  // does not exist until SES_SNS_TOPIC_ARN is set. Dev and CI register it
+  // unpinned for local testing but are not internet-exposed.
+  if (config.nodeEnv !== 'production' || config.sesSnsTopicArn) {
+    await app.register(webhookRoutes, { prefix: '/api/webhooks', config, db: deps.db });
+  }
 
   return app;
 }
