@@ -4,12 +4,21 @@ const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const
 export type NodeEnv = (typeof NODE_ENVS)[number];
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string | undefined;
+  pass: string | undefined;
+  from: string;
+}
+
 export interface Config {
   nodeEnv: NodeEnv;
   port: number;
   logLevel: LogLevel;
   databaseUrl: string;
   appOrigin: string;
+  smtp: SmtpConfig;
   stripeSecretKey: string | undefined;
 }
 
@@ -54,6 +63,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`APP_ORIGIN must be the canonical scheme://host origin; got "${appOrigin}"`);
   }
 
+  // SMTP covers both environments: Mailpit locally, the SES SMTP endpoint in
+  // production. Dev defaults point at the compose Mailpit service.
+  const smtpPort = Number(env.SMTP_PORT ?? 1025);
+  if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+    throw new Error(`SMTP_PORT must be an integer between 1 and 65535; got "${env.SMTP_PORT}"`);
+  }
+  const smtp: SmtpConfig = {
+    host: env.SMTP_HOST ?? 'localhost',
+    port: smtpPort,
+    user: env.SMTP_USER || undefined,
+    pass: env.SMTP_PASS || undefined,
+    from: env.MAIL_FROM ?? 'authledger <no-reply@authledger.test>',
+  };
+
   const stripeSecretKey = env.STRIPE_SECRET_KEY || undefined;
   if (stripeSecretKey && nodeEnv !== 'production' && !stripeSecretKey.startsWith('sk_test_')) {
     throw new Error(
@@ -62,5 +85,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
-  return { nodeEnv, port, logLevel, databaseUrl, appOrigin, stripeSecretKey };
+  return { nodeEnv, port, logLevel, databaseUrl, appOrigin, smtp, stripeSecretKey };
 }

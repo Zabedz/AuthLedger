@@ -8,7 +8,10 @@ export type AuditEvent =
   | 'login_rejected_locked'
   | 'account_locked'
   | 'logout'
-  | 'session_revoked';
+  | 'session_revoked'
+  | 'email_verified'
+  | 'password_reset'
+  | 'account_deleted';
 
 export interface AuditEntry {
   event: AuditEvent;

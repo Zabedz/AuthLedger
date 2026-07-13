@@ -102,6 +102,27 @@ export async function revokeSession(
   return result.numUpdatedRows > 0n;
 }
 
+// Revokes every live session for a user, optionally sparing one (the session
+// that initiated a password change keeps the user signed in on that device).
+export async function revokeAllSessions(
+  db: Kysely<DB>,
+  userId: string,
+  exceptSessionId?: string,
+): Promise<number> {
+  let query = db
+    .updateTable('sessions')
+    .set({ revoked_at: new Date() })
+    .where('user_id', '=', userId)
+    .where('revoked_at', 'is', null);
+
+  if (exceptSessionId) {
+    query = query.where('id', '!=', exceptSessionId);
+  }
+
+  const result = await query.executeTakeFirst();
+  return Number(result.numUpdatedRows);
+}
+
 export async function listLiveSessions(db: Kysely<DB>, userId: string): Promise<Session[]> {
   return db
     .selectFrom('sessions')

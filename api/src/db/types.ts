@@ -34,6 +34,26 @@ export interface AuditEvents {
   user_id: string | null;
 }
 
+export interface AuthTokens {
+  consumed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: Generated<string>;
+  purpose: string;
+  token_hash: Buffer;
+  user_id: string;
+}
+
+export interface EmailDispatches {
+  created_at: Generated<Timestamp>;
+  dedupe_key: string;
+  id: Generated<string>;
+  kind: string;
+  recipient: string;
+  sent_at: Timestamp | null;
+  user_id: string | null;
+}
+
 export interface Pgmigrations {
   id: Generated<number>;
   name: string;
@@ -55,6 +75,7 @@ export interface Sessions {
 export interface Users {
   created_at: Generated<Timestamp>;
   email: string;
+  email_verified_at: Timestamp | null;
   failed_login_count: Generated<number>;
   id: Generated<string>;
   locked_until: Timestamp | null;
@@ -64,6 +85,8 @@ export interface Users {
 
 export interface DB {
   audit_events: AuditEvents;
+  auth_tokens: AuthTokens;
+  email_dispatches: EmailDispatches;
   pgmigrations: Pgmigrations;
   sessions: Sessions;
   users: Users;
