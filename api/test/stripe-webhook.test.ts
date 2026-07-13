@@ -19,16 +19,22 @@ afterAll(async () => {
 });
 
 // Builds a Stripe event body and its valid signature header for the test secret.
-function signedEvent(opts: { id: string; type: string; intentId: string; created: number }): {
-  payload: string;
-  header: string;
-} {
+// A payment-intent event derives its object from intentId; other events pass a
+// full object (a refund, a dispute).
+function signedEvent(opts: {
+  id: string;
+  type: string;
+  created: number;
+  intentId?: string;
+  object?: Record<string, unknown>;
+}): { payload: string; header: string } {
+  const object = opts.object ?? { id: opts.intentId, object: 'payment_intent' };
   const payload = JSON.stringify({
     id: opts.id,
     object: 'event',
     type: opts.type,
     created: opts.created,
-    data: { object: { id: opts.intentId, object: 'payment_intent' } },
+    data: { object },
   });
   const header = stripe.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET });
   return { payload, header };
@@ -163,8 +169,8 @@ describe('stripe webhook processing', () => {
   it('stores an event with no handler as unhandled, without failing', async () => {
     const { payload, header } = signedEvent({
       id: 'evt_u',
-      type: 'charge.dispute.created',
-      intentId: 'pi_x',
+      type: 'customer.created',
+      intentId: 'cus_x',
       created: 600,
     });
     const res = await post(payload, { 'stripe-signature': header });
@@ -175,6 +181,42 @@ describe('stripe webhook processing', () => {
       .where('id', '=', 'evt_u')
       .executeTakeFirstOrThrow();
     expect(inbox.status).toBe('unhandled');
+  });
+
+  it('posts a refund to the ledger from a refund event', async () => {
+    const { payload, header } = signedEvent({
+      id: 'evt_refund',
+      type: 'refund.created',
+      created: 900,
+      object: {
+        id: 're_1',
+        object: 'refund',
+        amount: 400,
+        currency: 'usd',
+        payment_intent: 'pi_r',
+      },
+    });
+    expect((await post(payload, { 'stripe-signature': header })).statusCode).toBe(200);
+    expect(await accountBalance(ctx.db, 'refunds')).toBe(400);
+    expect(await accountBalance(ctx.db, 'stripe_receivable')).toBe(-400);
+  });
+
+  it('posts a dispute to the ledger from a dispute event', async () => {
+    const { payload, header } = signedEvent({
+      id: 'evt_dispute',
+      type: 'charge.dispute.created',
+      created: 950,
+      object: {
+        id: 'du_1',
+        object: 'dispute',
+        amount: 1000,
+        currency: 'usd',
+        payment_intent: 'pi_d',
+      },
+    });
+    expect((await post(payload, { 'stripe-signature': header })).statusCode).toBe(200);
+    expect(await accountBalance(ctx.db, 'disputes')).toBe(1000);
+    expect(await accountBalance(ctx.db, 'stripe_receivable')).toBe(-1000);
   });
 
   it('records a known event for an unknown intent as unmatched for retry', async () => {
