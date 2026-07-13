@@ -43,8 +43,13 @@ resource "aws_secretsmanager_secret" "database_url" {
 
 resource "aws_secretsmanager_secret_version" "database_url" {
   secret_id = aws_secretsmanager_secret.database_url.id
+  # RDS forces SSL (rds.force_ssl). sslmode=no-verify encrypts the connection
+  # without CA verification, which is proportionate for VPC-internal traffic
+  # and covers all three clients (app pool, pg-boss, node-pg-migrate) that read
+  # this URL. The upgrade to verify-full (bundle the RDS CA) is the first move
+  # of a real deployment, like the plain-HTTP CloudFront-to-ALB leg.
   secret_string = format(
-    "postgres://%s:%s@%s/%s",
+    "postgres://%s:%s@%s/%s?sslmode=no-verify",
     aws_db_instance.main.username,
     random_password.db.result,
     aws_db_instance.main.endpoint,

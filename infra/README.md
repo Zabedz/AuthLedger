@@ -89,6 +89,13 @@ first goes up (PLAN M1 acceptance).
 
 ## Accepted weakness
 
+The app reaches RDS with SSL but without CA verification
+(`sslmode=no-verify`), because RDS forces SSL and bundling the regional CA into
+the image is deferred. The traffic is encrypted and stays inside the private
+VPC (RDS in private subnets, reachable only from the API security group), so
+the residual risk is a VPC-internal MITM. The upgrade to `verify-full` with the
+RDS CA bundle is a small follow-up.
+
 CloudFront reaches the ALB over plain HTTP because ACM will not issue a
 certificate for the ALB's default hostname. Mitigations: the ALB security
 group admits only CloudFront's origin-facing prefix list, and the listener
