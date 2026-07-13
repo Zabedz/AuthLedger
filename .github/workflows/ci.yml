@@ -44,6 +44,22 @@ jobs:
   test:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-bookworm
+        env:
+          POSTGRES_USER: authledger
+          POSTGRES_PASSWORD: authledger
+          POSTGRES_DB: authledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authledger -d authledger"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://authledger:authledger@localhost:5432/authledger_test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -116,6 +132,43 @@ jobs:
       - name: Verify the argon2 native module works in the image
         run: |
           docker exec smoke node -e 'require("argon2").hash("smoke").then((h) => { if (!h.startsWith("$argon2id")) { console.error("unexpected hash prefix: " + h); process.exit(1); } });'
+
+  e2e:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-bookworm
+        env:
+          POSTGRES_USER: authledger
+          POSTGRES_PASSWORD: authledger
+          POSTGRES_DB: authledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authledger -d authledger"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+    env:
+      E2E_DATABASE_URL: postgres://authledger:authledger@localhost:5432/authledger_e2e
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w shared
+      - name: Create and migrate the e2e database
+        run: |
+          PGPASSWORD=authledger psql -h localhost -U authledger -d postgres \
+            -c 'CREATE DATABASE authledger_e2e'
+          DATABASE_URL="$E2E_DATABASE_URL" npm run migrate:up -w api
+      - name: Install Playwright browser
+        run: npx --workspace @authledger/web playwright install --with-deps chromium
+      - name: Run the composed-stack e2e
+        run: npm run e2e -w web
 
   gitleaks:
     if: github.event_name != 'schedule'

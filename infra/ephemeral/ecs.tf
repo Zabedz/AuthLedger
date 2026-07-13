@@ -61,6 +61,7 @@ locals {
     environment = [
       { name = "NODE_ENV", value = "production" },
       { name = "PORT", value = "8000" },
+      { name = "APP_ORIGIN", value = data.terraform_remote_state.persistent.outputs.app_url },
     ]
 
     secrets = [

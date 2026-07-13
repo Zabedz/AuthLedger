@@ -7,3 +7,8 @@ coverage/
 infra/backend.hcl
 .terraform/
 *.tfstate*
+
+# Playwright
+web/test-results/
+web/playwright-report/
+web/blob-report/
