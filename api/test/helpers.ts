@@ -24,6 +24,7 @@ export const testConfig: Config = {
     from: 'test@authledger.test',
   },
   encryptionKey: Buffer.alloc(32, 9),
+  oauth: { google: undefined, github: undefined },
   sesSnsTopicArn: undefined,
   stripeSecretKey: undefined,
 };
@@ -65,7 +66,7 @@ export async function makeTestServer(
 
   const app = await buildServer(
     config,
-    { db, enqueue, health: overrides.health ?? healthyDeps },
+    { db, enqueue, health: overrides.health ?? healthyDeps, oauthClients: overrides.oauthClients },
     { loggerStream },
   );
 
@@ -87,6 +88,8 @@ export async function truncateAll(db: Kysely<DB>): Promise<void> {
   await db.deleteFrom('auth_tokens').execute();
   await db.deleteFrom('mfa_challenges').execute();
   await db.deleteFrom('mfa_recovery_codes').execute();
+  await db.deleteFrom('oauth_flows').execute();
+  await db.deleteFrom('provider_identities').execute();
   await db.deleteFrom('processed_sns_messages').execute();
   await db.deleteFrom('email_suppressions').execute();
   await db.deleteFrom('sessions').execute();

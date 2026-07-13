@@ -49,6 +49,21 @@ async function auditKinds() {
   return rows.map((r) => r.event);
 }
 
+// The MFA challenge rides in an HttpOnly al_mfa cookie now, not the body.
+function mfaCookieOf(res: { headers: Record<string, unknown> }): string {
+  const setCookie = res.headers['set-cookie'];
+  const lines = Array.isArray(setCookie) ? setCookie : [String(setCookie)];
+  const line = lines.find((l) => l.startsWith('al_mfa='));
+  if (!line) throw new Error(`no al_mfa cookie in ${JSON.stringify(setCookie)}`);
+  return line.split(';')[0]!;
+}
+
+// Password login, then exchange the challenge cookie for a session with a code.
+async function loginWithMfa(code: string) {
+  const login = await post('/api/auth/login', { email: EMAIL, password: PASSWORD });
+  return post('/api/auth/login/mfa', { code }, { cookie: mfaCookieOf(login) });
+}
+
 describe('MFA enrollment', () => {
   it('setup returns an otpauth URI and stores the secret encrypted, not plaintext', async () => {
     const cookie = await registerAndLogin();
@@ -90,21 +105,17 @@ describe('MFA login', () => {
     const login = await post('/api/auth/login', { email: EMAIL, password: PASSWORD });
     expect(login.statusCode).toBe(200);
     expect(login.json().mfa_required).toBe(true);
-    expect(login.json().challenge).toBeTruthy();
-    expect(login.headers['set-cookie']).toBeUndefined();
+    // The challenge rides in an HttpOnly cookie, and no session is minted yet.
+    const cookies = String(login.headers['set-cookie']);
+    expect(cookies).toContain('al_mfa=');
+    expect(cookies).not.toContain('al_session=');
   });
 
   it('a valid TOTP exchanges the challenge for a session', async () => {
     const cookie = await registerAndLogin();
     const { secret } = await enrollMfa(cookie);
 
-    const login = await post('/api/auth/login', { email: EMAIL, password: PASSWORD });
-    const challenge = login.json().challenge;
-
-    const verify = await post('/api/auth/login/mfa', {
-      challenge,
-      code: await totpFor(secret),
-    });
+    const verify = await loginWithMfa(await totpFor(secret));
     expect(verify.statusCode).toBe(200);
     expect(verify.json().user.email).toBe(EMAIL);
     expect(String(verify.headers['set-cookie'])).toContain('al_session=');
@@ -114,14 +125,14 @@ describe('MFA login', () => {
   it('a wrong TOTP is rejected and the challenge is spent', async () => {
     const cookie = await registerAndLogin();
     await enrollMfa(cookie);
-    const challenge = (await post('/api/auth/login', { email: EMAIL, password: PASSWORD })).json()
-      .challenge;
+    const login = await post('/api/auth/login', { email: EMAIL, password: PASSWORD });
+    const mfaCookie = mfaCookieOf(login);
 
-    const first = await post('/api/auth/login/mfa', { challenge, code: '000000' });
+    const first = await post('/api/auth/login/mfa', { code: '000000' }, { cookie: mfaCookie });
     expect(first.statusCode).toBe(401);
 
     // The challenge is single-use even on a failed attempt.
-    const reuse = await post('/api/auth/login/mfa', { challenge, code: '111111' });
+    const reuse = await post('/api/auth/login/mfa', { code: '111111' }, { cookie: mfaCookie });
     expect(reuse.statusCode).toBe(401);
     expect(await auditKinds()).toContain('mfa_failed');
   });
@@ -131,15 +142,11 @@ describe('MFA login', () => {
     const { recoveryCodes } = await enrollMfa(cookie);
     const recovery = recoveryCodes[0]!;
 
-    const challenge1 = (await post('/api/auth/login', { email: EMAIL, password: PASSWORD })).json()
-      .challenge;
-    const use = await post('/api/auth/login/mfa', { challenge: challenge1, code: recovery });
+    const use = await loginWithMfa(recovery);
     expect(use.statusCode).toBe(200);
     expect(await auditKinds()).toContain('recovery_code_used');
 
-    const challenge2 = (await post('/api/auth/login', { email: EMAIL, password: PASSWORD })).json()
-      .challenge;
-    const reuse = await post('/api/auth/login/mfa', { challenge: challenge2, code: recovery });
+    const reuse = await loginWithMfa(recovery);
     expect(reuse.statusCode).toBe(401);
   });
 
@@ -161,15 +168,11 @@ describe('TOTP replay protection', () => {
     const { secret } = await enrollMfa(cookie);
     const code = await totpFor(secret);
 
-    const c1 = (await post('/api/auth/login', { email: EMAIL, password: PASSWORD })).json()
-      .challenge;
-    const first = await post('/api/auth/login/mfa', { challenge: c1, code });
+    const first = await loginWithMfa(code);
     expect(first.statusCode).toBe(200);
 
     // Same code, fresh challenge: the time step has not advanced, so it is a replay.
-    const c2 = (await post('/api/auth/login', { email: EMAIL, password: PASSWORD })).json()
-      .challenge;
-    const replay = await post('/api/auth/login/mfa', { challenge: c2, code });
+    const replay = await loginWithMfa(code);
     expect(replay.statusCode).toBe(401);
   });
 });
