@@ -385,3 +385,32 @@ required for the live flow. Deferred: a dedicated finance role (admin holds all
 money permissions for now); carrying money as a string end to end if amounts
 could exceed 2^53 minor units; disputes (M7) land as 'unhandled' inbox rows
 until their handler exists.
+
+## ADR-019: Live payment flow: intent creation, refunds, and idempotency (2026-07-13)
+
+Context: M6b puts real payments through the M6a foundation, needing a Stripe test
+key: PaymentIntent creation, refunds, and the publishable key for the SPA. The
+flow was proven end to end against Stripe test mode (create, confirm a test card,
+webhook to succeeded; idempotent create; partial and idempotent refund).
+Decision: creating a payment (POST /api/payments) requires an Idempotency-Key
+header, scoped to the user and passed as Stripe's idempotency key, so a client
+retry is one charge on both sides; the row is upserted on our key and the
+payment_created audit fires only on a genuine insert, not on a retry. Refunds
+(POST /api/payments/:id/refund) are gated by the payments.refund permission plus
+the canRefundPayment ceiling policy, and every refund is a row in a refunds table
+keyed by its own idempotency key, so a retried refund is a no-op. The cumulative
+refunded total both bounds a new refund (it cannot exceed the remaining balance)
+and is what the ceiling is checked against, so several sub-ceiling partial
+refunds cannot be split around the ceiling. The Stripe calls and the create DB
+write are wrapped, so a provider or database failure returns a clean 502 or 503,
+never a leaked error message. A public GET /api/payments/config serves only the
+publishable key (never the secret or webhook secret) for the SPA. These endpoints
+take the shared injected Stripe client, so tests drive them with a stub and no
+network.
+Consequences: the SPA Payment Element (M6c) consumes /config and the client
+secret from create. Deferred to M7: reconciliation to catch an out-of-band
+'unmatched' event, refund and dispute ledger postings, and a finance role holding
+payments.refund_over_ceiling (admin holds it now). The review that shaped this
+ADR (a four-lens adversarial pass) caught the split-refund ceiling bypass, the
+same-amount refund idempotency-key collision, the non-idempotent create audit,
+and the unwrapped Stripe error path; all are closed here.
