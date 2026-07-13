@@ -4,6 +4,7 @@ import type {
   ErrorReply,
   LoginReply,
   MfaSetupReply,
+  OAuthProvidersReply,
   RecoveryCodesReply,
   SessionList,
   UserEnvelope,
@@ -39,8 +40,9 @@ const jsonBody = (value: object): RequestInit => ({ method: 'POST', body: JSON.s
 export const api = {
   register: (creds: Credentials) => request<AcceptedReply>('/auth/register', jsonBody(creds)),
   login: (creds: Credentials) => request<LoginReply>('/auth/login', jsonBody(creds)),
-  loginMfa: (challenge: string, code: string) =>
-    request<UserEnvelope>('/auth/login/mfa', jsonBody({ challenge, code })),
+  // The challenge rides in an HttpOnly cookie set by /login; only the code goes up.
+  loginMfa: (code: string) => request<UserEnvelope>('/auth/login/mfa', jsonBody({ code })),
+  oauthProviders: () => request<OAuthProvidersReply>('/auth/oauth/providers'),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<UserEnvelope>('/auth/me'),
   sessions: () => request<SessionList>('/auth/sessions'),

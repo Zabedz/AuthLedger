@@ -17,6 +17,12 @@ function tokenFromUrl(): string {
   return new URLSearchParams(window.location.search).get('token') ?? '';
 }
 
+// The OAuth callback bounces back to /?oauth_error=1 when the provider round-trip
+// fails, so the sign-in screen can say so.
+function oauthFailed(): boolean {
+  return new URLSearchParams(window.location.search).get('oauth_error') === '1';
+}
+
 function useSession() {
   return useQuery({
     queryKey: ['me'],
@@ -31,12 +37,15 @@ function useSession() {
   });
 }
 
-function MfaChallenge({ challenge, onRestart }: { challenge: string; onRestart: () => void }) {
+function MfaChallenge({ onRestart, onSuccess }: { onRestart: () => void; onSuccess?: () => void }) {
   const qc = useQueryClient();
   const [code, setCode] = useState('');
   const verify = useMutation({
-    mutationFn: () => api.loginMfa(challenge, code),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+    mutationFn: () => api.loginMfa(code),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['me'] });
+      onSuccess?.();
+    },
   });
 
   return (
@@ -67,6 +76,24 @@ function MfaChallenge({ challenge, onRestart }: { challenge: string; onRestart: 
   );
 }
 
+const providerLabels: Record<string, string> = { google: 'Google', github: 'GitHub' };
+
+// A full-page link per configured provider: OAuth needs a real browser redirect,
+// not a fetch. Nothing renders until the server says which providers are wired up.
+function OAuthButtons() {
+  const providers = useQuery({ queryKey: ['oauth-providers'], queryFn: api.oauthProviders });
+  if (!providers.data?.providers.length) return null;
+  return (
+    <nav aria-label="Social login">
+      {providers.data.providers.map((p) => (
+        <a key={p} href={`/api/auth/oauth/${p}/start`}>
+          Continue with {providerLabels[p] ?? p}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 function AuthForm() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
@@ -85,7 +112,7 @@ function AuthForm() {
 
   // Password verified but a second factor is needed.
   if (login.data && 'mfa_required' in login.data) {
-    return <MfaChallenge challenge={login.data.challenge} onRestart={() => login.reset()} />;
+    return <MfaChallenge onRestart={() => login.reset()} />;
   }
 
   if (register.isSuccess) {
@@ -144,6 +171,10 @@ function AuthForm() {
         {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Register' : 'Send reset link'}
       </button>
       {error instanceof ApiError && <p role="alert">{error.message}</p>}
+      {mode === 'login' && oauthFailed() && (
+        <p role="alert">That social login did not complete. Try again.</p>
+      )}
+      {mode === 'login' && <OAuthButtons />}
       <nav>
         <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
           {mode === 'login' ? 'Need an account?' : 'Have an account?'}
@@ -390,10 +421,24 @@ function Shell() {
   );
 }
 
+// After OAuth on an MFA account, the callback lands here with a challenge cookie
+// set. Verifying mints the session, so a full navigation to / shows the dashboard.
+function MfaRoute() {
+  return (
+    <section>
+      <MfaChallenge
+        onRestart={() => window.location.assign('/')}
+        onSuccess={() => window.location.assign('/')}
+      />
+    </section>
+  );
+}
+
 function Router() {
   const path = window.location.pathname;
   if (path === '/verify-email') return <VerifyEmail />;
   if (path === '/reset-password') return <ResetPassword />;
+  if (path === '/mfa') return <MfaRoute />;
   return <Shell />;
 }
 
