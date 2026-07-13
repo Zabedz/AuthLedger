@@ -109,7 +109,7 @@ export async function listUsersWithRoles(
   const users = await db
     .selectFrom('users')
     .select(['id', 'email', 'email_verified_at', 'totp_enabled_at', 'created_at'])
-    .orderBy('created_at', 'asc')
+    .orderBy('created_at', 'desc')
     .limit(limit)
     .offset(offset)
     .execute();

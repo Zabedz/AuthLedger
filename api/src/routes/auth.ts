@@ -5,6 +5,7 @@ import {
   credentialsSchema,
   errorReplySchema,
   loginReplySchema,
+  meReplySchema,
   mfaCodeSchema,
   sessionListSchema,
   userEnvelopeSchema,
@@ -199,10 +200,13 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     {
       preHandler: requireAuth,
       config: { policy: 'self' },
-      schema: { response: { 200: userEnvelopeSchema, 401: errorReplySchema } },
+      schema: { response: { 200: meReplySchema, 401: errorReplySchema } },
     },
     async (req, reply) => {
-      return reply.code(200).send(userReply(req.auth!.user));
+      return reply.code(200).send({
+        ...userReply(req.auth!.user),
+        permissions: [...req.auth!.permissions],
+      });
     },
   );
 

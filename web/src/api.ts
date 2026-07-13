@@ -1,13 +1,18 @@
 import type {
   AcceptedReply,
+  AdminUserList,
+  AuditList,
   Credentials,
   ErrorReply,
   LoginReply,
+  MeReply,
   MfaSetupReply,
   OAuthProvidersReply,
   RecoveryCodesReply,
+  RoleNameValue,
   SessionList,
   UserEnvelope,
+  UserRolesReply,
 } from '@authledger/shared';
 
 export class ApiError extends Error {
@@ -44,7 +49,7 @@ export const api = {
   loginMfa: (code: string) => request<UserEnvelope>('/auth/login/mfa', jsonBody({ code })),
   oauthProviders: () => request<OAuthProvidersReply>('/auth/oauth/providers'),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
-  me: () => request<UserEnvelope>('/auth/me'),
+  me: () => request<MeReply>('/auth/me'),
   sessions: () => request<SessionList>('/auth/sessions'),
   revokeSession: (id: string) => request<void>(`/auth/sessions/${id}`, { method: 'DELETE' }),
   deleteAccount: () => request<void>('/auth/account', { method: 'DELETE' }),
@@ -58,4 +63,10 @@ export const api = {
   mfaSetup: () => request<MfaSetupReply>('/auth/mfa/setup', { method: 'POST' }),
   mfaEnable: (code: string) => request<RecoveryCodesReply>('/auth/mfa/enable', jsonBody({ code })),
   mfaDisable: (code: string) => request<void>('/auth/mfa/disable', jsonBody({ code })),
+  adminUsers: () => request<AdminUserList>('/admin/users'),
+  adminAudit: () => request<AuditList>('/admin/audit'),
+  grantRole: (userId: string, role: RoleNameValue) =>
+    request<UserRolesReply>(`/admin/users/${userId}/roles/${role}`, { method: 'PUT' }),
+  revokeRole: (userId: string, role: RoleNameValue) =>
+    request<UserRolesReply>(`/admin/users/${userId}/roles/${role}`, { method: 'DELETE' }),
 };

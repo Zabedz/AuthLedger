@@ -6,8 +6,10 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Credentials } from '@authledger/shared';
+import type { Credentials, RoleNameValue } from '@authledger/shared';
 import { ApiError, api } from './api.js';
+
+const ASSIGNABLE_ROLES: RoleNameValue[] = ['admin', 'auditor'];
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -292,14 +294,74 @@ function MfaSettings({ enabled }: { enabled: boolean }) {
   );
 }
 
+// Role management for accounts holding users.read. Grant/revoke buttons appear
+// only with roles.assign; the API enforces either way, so this is UI gating.
+function AdminPanel({ canAssign }: { canAssign: boolean }) {
+  const qc = useQueryClient();
+  const users = useQuery({ queryKey: ['admin-users'], queryFn: api.adminUsers });
+  const onSettled = () => qc.invalidateQueries({ queryKey: ['admin-users'] });
+  const grant = useMutation({
+    mutationFn: (v: { userId: string; role: RoleNameValue }) => api.grantRole(v.userId, v.role),
+    onSuccess: onSettled,
+  });
+  const revoke = useMutation({
+    mutationFn: (v: { userId: string; role: RoleNameValue }) => api.revokeRole(v.userId, v.role),
+    onSuccess: onSettled,
+  });
+  const error = grant.error ?? revoke.error;
+
+  if (users.isLoading) return <p>Loading users...</p>;
+
+  return (
+    <div>
+      {error instanceof ApiError && <p role="alert">{error.message}</p>}
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Roles</th>
+            {canAssign && <th>Manage</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {users.data?.users.map((u) => (
+            <tr key={u.id}>
+              <td>{u.email}</td>
+              <td>{u.roles.join(', ') || '-'}</td>
+              {canAssign && (
+                <td>
+                  {ASSIGNABLE_ROLES.map((role) => {
+                    const has = u.roles.includes(role);
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => (has ? revoke : grant).mutate({ userId: u.id, role })}
+                      >
+                        {has ? `Revoke ${role}` : `Grant ${role}`}
+                      </button>
+                    );
+                  })}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Dashboard({
   email,
   verified,
   mfaEnabled,
+  permissions,
 }: {
   email: string;
   verified: boolean;
   mfaEnabled: boolean;
+  permissions: string[];
 }) {
   const qc = useQueryClient();
   const invalidateMe = () => qc.invalidateQueries({ queryKey: ['me'] });
@@ -325,6 +387,12 @@ function Dashboard({
       </button>
       <h2>Two-factor authentication</h2>
       <MfaSettings enabled={mfaEnabled} />
+      {permissions.includes('users.read') && (
+        <>
+          <h2>Administration</h2>
+          <AdminPanel canAssign={permissions.includes('roles.assign')} />
+        </>
+      )}
       <h2>Active sessions</h2>
       <Sessions />
       <h2>Danger zone</h2>
@@ -415,6 +483,7 @@ function Shell() {
       email={session.data.user.email}
       verified={session.data.user.email_verified}
       mfaEnabled={session.data.user.mfa_enabled}
+      permissions={session.data.permissions}
     />
   ) : (
     <AuthForm />

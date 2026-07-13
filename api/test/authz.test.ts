@@ -124,6 +124,18 @@ describe('role changes take effect on the next request', () => {
   });
 });
 
+describe('/me exposes the caller permissions', () => {
+  it('lists the granted actions for UI gating, empty for a plain user', async () => {
+    const admin = await makeUser('me-admin@example.com');
+    await assignRole(ctx.db, admin.id, 'admin', null);
+    const me = await inject('GET', '/api/auth/me', admin.cookie);
+    expect(me.json().permissions).toEqual(expect.arrayContaining(['users.read', 'roles.assign']));
+
+    const plain = await makeUser('me-plain@example.com');
+    expect((await inject('GET', '/api/auth/me', plain.cookie)).json().permissions).toEqual([]);
+  });
+});
+
 describe('the seeded tables match the code', () => {
   it('permissions and roles equal the PERMISSION_ACTIONS and ROLE_NAMES literals', async () => {
     const perms = (await ctx.db.selectFrom('permissions').select('action').execute())

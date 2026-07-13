@@ -37,6 +37,14 @@ export type UserReply = Static<typeof userSchema>;
 export const userEnvelopeSchema = Type.Object({ user: userSchema });
 export type UserEnvelope = Static<typeof userEnvelopeSchema>;
 
+// /me carries the caller's permission actions too, so the SPA shows admin UI
+// only to accounts that hold the matching permission. The API still enforces.
+export const meReplySchema = Type.Object({
+  user: userSchema,
+  permissions: Type.Array(Type.String()),
+});
+export type MeReply = Static<typeof meReplySchema>;
+
 export const errorReplySchema = Type.Object({ error: Type.String() });
 export type ErrorReply = Static<typeof errorReplySchema>;
 
