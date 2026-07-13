@@ -1,39 +1,23 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
-import type { Kysely } from 'kysely';
 import {
+  acceptedReplySchema,
   credentialsSchema,
   errorReplySchema,
   sessionListSchema,
   userEnvelopeSchema,
 } from '@authledger/shared';
-import type { Config } from '../config.js';
-import type { DB } from '../db/types.js';
 import { authenticate, registerUser } from '../domain/accounts.js';
 import { recordAudit } from '../domain/audit.js';
-import { createSession, listLiveSessions, revokeSession, type User } from '../domain/sessions.js';
+import { issueToken, VERIFY_EMAIL_TTL_HOURS } from '../domain/tokens.js';
+import { isNewDevice } from '../domain/devices.js';
+import { createSession, listLiveSessions, revokeSession } from '../domain/sessions.js';
 import { clearSessionCookie, requireAuth, setSessionCookie } from '../plugins/session-auth.js';
+import { requestContextOf, userReply, type RouteDeps } from './deps.js';
 
-function userReply(user: User) {
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      created_at: user.created_at.toISOString(),
-    },
-  };
-}
-
-function requestContextOf(req: { ip: string; headers: Record<string, unknown> }) {
-  return {
-    ip: req.ip,
-    userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null,
-  };
-}
-
-export const authRoutes: FastifyPluginAsyncTypebox<{ config: Config; db: Kysely<DB> }> = async (
+export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app,
-  { config, db },
+  { config, db, enqueue },
 ) => {
   app.post(
     '/register',
@@ -41,21 +25,27 @@ export const authRoutes: FastifyPluginAsyncTypebox<{ config: Config; db: Kysely<
       config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: {
         body: credentialsSchema,
-        response: { 201: userEnvelopeSchema, 409: errorReplySchema },
+        response: { 202: acceptedReplySchema },
       },
     },
     async (req, reply) => {
       const ctx = requestContextOf(req);
       const result = await registerUser(db, req.body.email, req.body.password);
 
-      if (result.status === 'exists') {
-        // A 409 leaks address existence; acceptable until M3, where
-        // verification email flows make the response uniform (see PLAN M3).
-        return reply.code(409).send({ error: 'email already registered' });
+      // Uniform response whether or not the address is new: only a real,
+      // freshly created account triggers a verification email.
+      if (result.status === 'created') {
+        await recordAudit(db, { event: 'user_registered', userId: result.user.id, ...ctx });
+        const token = await issueToken(db, result.user.id, 'verify_email', VERIFY_EMAIL_TTL_HOURS);
+        await enqueue.enqueue({
+          kind: 'verify_email',
+          recipient: result.user.email,
+          userId: result.user.id,
+          ctx: { appOrigin: config.appOrigin, token },
+        });
       }
 
-      await recordAudit(db, { event: 'user_registered', userId: result.user.id, ...ctx });
-      return reply.code(201).send(userReply(result.user));
+      return reply.code(202).send({ status: 'accepted' });
     },
   );
 
@@ -85,10 +75,20 @@ export const authRoutes: FastifyPluginAsyncTypebox<{ config: Config; db: Kysely<
           ...ctx,
           detail: { email: req.body.email },
         });
+        if (result.status === 'locked_now') {
+          await enqueue.enqueue({
+            kind: 'account_locked',
+            recipient: req.body.email,
+            userId: result.userId,
+            ctx: { appOrigin: config.appOrigin },
+          });
+        }
         // One generic answer for wrong password, unknown email, and locked
         // account: anything richer is an oracle.
         return reply.code(401).send({ error: 'invalid credentials' });
       }
+
+      const newDevice = await isNewDevice(db, result.user.id, ctx.userAgent);
 
       // Rotation: a session presented at login never survives it.
       if (req.auth) {
@@ -102,6 +102,15 @@ export const authRoutes: FastifyPluginAsyncTypebox<{ config: Config; db: Kysely<
         sessionId: session.id,
         ...ctx,
       });
+
+      if (newDevice) {
+        await enqueue.enqueue({
+          kind: 'new_device_login',
+          recipient: result.user.email,
+          userId: result.user.id,
+          ctx: { appOrigin: config.appOrigin },
+        });
+      }
 
       setSessionCookie(reply, config, token);
       return reply.code(200).send(userReply(result.user));

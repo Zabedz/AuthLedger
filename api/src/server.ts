@@ -5,16 +5,19 @@ import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import type { Kysely } from 'kysely';
 import type { Config } from './config.js';
 import type { DB } from './db/types.js';
+import type { EmailEnqueuer } from './domain/dispatch.js';
 import { loggerOptions, requestContext } from './logging.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
 import { registerSessionAuth } from './plugins/session-auth.js';
+import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes, type HealthDeps } from './routes/health.js';
 
 export interface ServerDeps {
   health: HealthDeps;
   db: Kysely<DB>;
+  enqueue: EmailEnqueuer;
 }
 
 export interface ServerOptions {
@@ -57,8 +60,10 @@ export async function buildServer(
   await registerSessionAuth(app, config, deps.db);
   await registerOpenapi(app, config);
 
+  const routeDeps = { config, db: deps.db, enqueue: deps.enqueue };
   await app.register(healthRoutes, { prefix: '/api', deps: deps.health });
-  await app.register(authRoutes, { prefix: '/api/auth', config, db: deps.db });
+  await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
+  await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
 
   return app;
 }

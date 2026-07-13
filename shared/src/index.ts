@@ -28,7 +28,8 @@ export type Credentials = Static<typeof credentialsSchema>;
 export const userSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   email: Type.String(),
-  created_at: Type.String(),
+  email_verified: Type.Boolean(),
+  created_at: Type.String({ format: 'date-time' }),
 });
 export type UserReply = Static<typeof userSchema>;
 
@@ -37,6 +38,25 @@ export type UserEnvelope = Static<typeof userEnvelopeSchema>;
 
 export const errorReplySchema = Type.Object({ error: Type.String() });
 export type ErrorReply = Static<typeof errorReplySchema>;
+
+// Non-enumerating reply: register, verification resend, and reset requests all
+// return this whether or not the address exists.
+export const acceptedReplySchema = Type.Object({ status: Type.Literal('accepted') });
+export type AcceptedReply = Static<typeof acceptedReplySchema>;
+
+export const emailRequestSchema = Type.Object({
+  email: Type.String({ format: 'email', maxLength: 254 }),
+});
+export type EmailRequest = Static<typeof emailRequestSchema>;
+
+export const tokenSchema = Type.Object({ token: Type.String({ minLength: 1, maxLength: 512 }) });
+export type TokenBody = Static<typeof tokenSchema>;
+
+export const resetPasswordSchema = Type.Object({
+  token: Type.String({ minLength: 1, maxLength: 512 }),
+  password: Type.String({ minLength: 8, maxLength: 200 }),
+});
+export type ResetPasswordBody = Static<typeof resetPasswordSchema>;
 
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
