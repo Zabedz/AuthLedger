@@ -459,3 +459,45 @@ dispute postings (those events currently land 'unhandled' in provider_events),
 fee postings and the daily reconciliation against Stripe balance transactions
 (the source of truth for settled amounts and fees, after which stripe_receivable
 reflects the net owed), and admin ledger and reconciliation views gated by M5.
+
+## ADR-021: Reconciliation against provider balance transactions (2026-07-13)
+
+Context: M7 reconciles the ledger against the provider. Stripe balance
+transactions are the record of settled amounts and fees; the webhook is a
+delivery channel, not the source of truth, and the settlement webhook does not
+carry the fee.
+Decision: reconcile(db, stripe) lists the provider's balance transactions (a
+pull, not a webhook push), posts each transaction's fee to the ledger (Dr fees,
+Cr stripe_receivable) keyed by the balance-transaction id so a re-run is a no-op,
+and flags a settled charge whose payment intent has no ledger charge as a
+discrepancy. Posting fees here is why the charge posts gross at settlement and
+stripe_receivable nets to what the provider actually owes only after
+reconciliation. Because a balance transaction is pulled, not pushed, its Stripe
+coupling lives in reconcile() rather than behind the webhook mapping module: the
+anti-corruption boundary for a pull is the reconcile function, which turns
+balance transactions into ledger effects. Each run's outcome is persisted in a
+reconciliations table (migration 0010) for the admin view and the logs;
+runAndRecordReconciliation wraps reconcile plus the insert, and the scheduled
+daily job (EventBridge to ECS RunTask, deferred to an AWS standup) calls the same
+function. The admin surface is POST /api/admin/reconcile (run now), GET
+/reconciliations (history), and GET /ledger (balances grouped by account and
+currency so mixed minor units are never summed), all gated by ledger.reconcile
+and the reconcile run audited.
+Consequences: the Stripe object vocabulary stays in mapBalanceTransaction
+alongside mapStripeEvent, so reconcile() sees only Settlements and the ledger
+stays provider-free (the "one place" seam holds for the pull as it does for the
+push). What "reconciled" means here is bounded: it flags an intent-backed settled
+charge missing from the ledger, one-directional (not the reverse, not an amount
+mismatch), and only charge/payment balance transactions are treated as
+settlements, so payout and transfer principals are not modeled and
+stripe_receivable is the recognized net, not the literal provider balance.
+A single balance-transaction page (limit 100, no has_more paging, no created
+window) suffices for this project's volume; a higher-volume or long-idle job
+would page and window on the newest reconciliations.ran_at, which also keeps the
+M8 nightly reconcile correct as the never-purged e2e data accumulates. Deferred:
+the EventBridge to ECS schedule (needs an AWS standup) with structured run
+logging and a status/error column so a failed scheduled run is visible in the
+admin view; pagination with the ran_at watermark; refund and dispute fee
+reversals; the reverse-direction and amount-mismatch checks; and a per-currency
+fees-posted summary (the postings are currency-tagged; only the summary metric
+sums across currencies).
