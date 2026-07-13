@@ -4,7 +4,7 @@ define with_env
 	set -a && . ./$(ENV_FILE) && set +a &&
 endef
 
-.PHONY: setup up down dev migrate migrate-down seed codegen test lint typecheck
+.PHONY: setup up down dev migrate migrate-down seed codegen test lint typecheck backup-drill
 
 setup:
 	cp -n .env.example .env || true
@@ -32,6 +32,9 @@ seed: migrate
 
 codegen:
 	$(with_env) npm run codegen -w api
+
+backup-drill:
+	./scripts/backup-restore-drill.sh
 
 test:
 	npm run build -w shared

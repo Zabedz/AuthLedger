@@ -152,6 +152,11 @@ idles at near-zero cost, and an ephemeral stack (VPC, ALB, ECS, RDS) that bills
 by the hour and is stood up to prove a deploy, then torn down. GitHub Actions
 runs CI on every push and drives standup, deploy, and teardown.
 
+Backups in production are RDS automated snapshots. `make backup-drill` rehearses
+the logical-dump path against the local database: it dumps Postgres, restores
+into a throwaway database, and proves the copy matches by comparing the schema
+and every table's row count.
+
 ## Documentation
 
 - [docs/PLAN.md](docs/PLAN.md) - the milestone plan, M0 through M8.
