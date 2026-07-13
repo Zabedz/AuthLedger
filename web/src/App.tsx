@@ -31,6 +31,42 @@ function useSession() {
   });
 }
 
+function MfaChallenge({ challenge, onRestart }: { challenge: string; onRestart: () => void }) {
+  const qc = useQueryClient();
+  const [code, setCode] = useState('');
+  const verify = useMutation({
+    mutationFn: () => api.loginMfa(challenge, code),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        verify.mutate();
+      }}
+    >
+      <h2>Two-factor code</h2>
+      <label>
+        Authenticator code or recovery code
+        <input value={code} onChange={(e) => setCode(e.target.value)} required autoFocus />
+      </label>
+      <button type="submit" disabled={verify.isPending}>
+        Verify
+      </button>
+      {/* A challenge is single-use, so a wrong code needs a fresh login. */}
+      {verify.error instanceof ApiError && (
+        <p role="alert">
+          {verify.error.message}{' '}
+          <button type="button" onClick={onRestart}>
+            Start over
+          </button>
+        </p>
+      )}
+    </form>
+  );
+}
+
 function AuthForm() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
@@ -38,10 +74,19 @@ function AuthForm() {
 
   const login = useMutation({
     mutationFn: api.login,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+    onSuccess: (reply) => {
+      if (!('mfa_required' in reply)) {
+        void qc.invalidateQueries({ queryKey: ['me'] });
+      }
+    },
   });
   const register = useMutation({ mutationFn: api.register });
   const forgot = useMutation({ mutationFn: (email: string) => api.requestPasswordReset(email) });
+
+  // Password verified but a second factor is needed.
+  if (login.data && 'mfa_required' in login.data) {
+    return <MfaChallenge challenge={login.data.challenge} onRestart={() => login.reset()} />;
+  }
 
   if (register.isSuccess) {
     return (
@@ -140,7 +185,91 @@ function Sessions() {
   );
 }
 
-function Dashboard({ email, verified }: { email: string; verified: boolean }) {
+function MfaSettings({ enabled }: { enabled: boolean }) {
+  const qc = useQueryClient();
+  const invalidateMe = () => qc.invalidateQueries({ queryKey: ['me'] });
+  const [code, setCode] = useState('');
+  const setup = useMutation({ mutationFn: api.mfaSetup });
+  const enable = useMutation({ mutationFn: () => api.mfaEnable(code), onSuccess: invalidateMe });
+  const disable = useMutation({ mutationFn: () => api.mfaDisable(code), onSuccess: invalidateMe });
+
+  // Recovery codes win over the enabled state: enabling flips mfa_enabled, but
+  // the codes are shown once and must not be replaced by the disable form.
+  if (enable.isSuccess) {
+    return (
+      <div>
+        <p role="status">Two-factor authentication is on. Save these recovery codes:</p>
+        <ul>
+          {enable.data.recovery_codes.map((c) => (
+            <li key={c}>
+              <code>{c}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (enabled) {
+    return (
+      <div>
+        <p role="status">Two-factor authentication is on.</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            disable.mutate();
+          }}
+        >
+          <label>
+            Current code to disable
+            <input value={code} onChange={(e) => setCode(e.target.value)} required />
+          </label>
+          <button type="submit">Disable</button>
+          {disable.error instanceof ApiError && <p role="alert">{disable.error.message}</p>}
+        </form>
+      </div>
+    );
+  }
+
+  if (setup.data) {
+    return (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          enable.mutate();
+        }}
+      >
+        <p>
+          Add this secret to your authenticator, then enter a code to confirm.
+          <br />
+          <code>{setup.data.secret}</code>
+        </p>
+        <label>
+          Code
+          <input value={code} onChange={(e) => setCode(e.target.value)} required />
+        </label>
+        <button type="submit">Enable</button>
+        {enable.error instanceof ApiError && <p role="alert">{enable.error.message}</p>}
+      </form>
+    );
+  }
+
+  return (
+    <button type="button" onClick={() => setup.mutate()}>
+      Set up two-factor authentication
+    </button>
+  );
+}
+
+function Dashboard({
+  email,
+  verified,
+  mfaEnabled,
+}: {
+  email: string;
+  verified: boolean;
+  mfaEnabled: boolean;
+}) {
   const qc = useQueryClient();
   const invalidateMe = () => qc.invalidateQueries({ queryKey: ['me'] });
   const logout = useMutation({ mutationFn: api.logout, onSuccess: invalidateMe });
@@ -163,6 +292,8 @@ function Dashboard({ email, verified }: { email: string; verified: boolean }) {
       <button type="button" onClick={() => logout.mutate()}>
         Sign out
       </button>
+      <h2>Two-factor authentication</h2>
+      <MfaSettings enabled={mfaEnabled} />
       <h2>Active sessions</h2>
       <Sessions />
       <h2>Danger zone</h2>
@@ -249,7 +380,11 @@ function Shell() {
   const session = useSession();
   if (session.isLoading) return <p>Loading...</p>;
   return session.data ? (
-    <Dashboard email={session.data.user.email} verified={session.data.user.email_verified} />
+    <Dashboard
+      email={session.data.user.email}
+      verified={session.data.user.email_verified}
+      mfaEnabled={session.data.user.mfa_enabled}
+    />
   ) : (
     <AuthForm />
   );

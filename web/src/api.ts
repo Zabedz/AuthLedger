@@ -2,6 +2,9 @@ import type {
   AcceptedReply,
   Credentials,
   ErrorReply,
+  LoginReply,
+  MfaSetupReply,
+  RecoveryCodesReply,
   SessionList,
   UserEnvelope,
 } from '@authledger/shared';
@@ -35,7 +38,9 @@ const jsonBody = (value: object): RequestInit => ({ method: 'POST', body: JSON.s
 
 export const api = {
   register: (creds: Credentials) => request<AcceptedReply>('/auth/register', jsonBody(creds)),
-  login: (creds: Credentials) => request<UserEnvelope>('/auth/login', jsonBody(creds)),
+  login: (creds: Credentials) => request<LoginReply>('/auth/login', jsonBody(creds)),
+  loginMfa: (challenge: string, code: string) =>
+    request<UserEnvelope>('/auth/login/mfa', jsonBody({ challenge, code })),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<UserEnvelope>('/auth/me'),
   sessions: () => request<SessionList>('/auth/sessions'),
@@ -48,4 +53,7 @@ export const api = {
     request<AcceptedReply>('/auth/password-reset/request', jsonBody({ email })),
   resetPassword: (token: string, password: string) =>
     request<AcceptedReply>('/auth/password-reset', jsonBody({ token, password })),
+  mfaSetup: () => request<MfaSetupReply>('/auth/mfa/setup', { method: 'POST' }),
+  mfaEnable: (code: string) => request<RecoveryCodesReply>('/auth/mfa/enable', jsonBody({ code })),
+  mfaDisable: (code: string) => request<void>('/auth/mfa/disable', jsonBody({ code })),
 };
