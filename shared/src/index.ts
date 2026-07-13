@@ -185,6 +185,41 @@ export const paymentConfigSchema = Type.Object({
 });
 export type PaymentConfig = Static<typeof paymentConfigSchema>;
 
+export const ledgerBalanceSchema = Type.Object({
+  account: Type.String(),
+  currency: Type.String(),
+  balance_minor: Type.Integer(),
+});
+export const ledgerBalancesSchema = Type.Object({ balances: Type.Array(ledgerBalanceSchema) });
+export type LedgerBalances = Static<typeof ledgerBalancesSchema>;
+
+export const discrepancySchema = Type.Object({
+  reference: Type.String(),
+  amount_minor: Type.Integer(),
+  reason: Type.String(),
+});
+
+export const reconciliationResultSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  checked: Type.Integer(),
+  fees_posted_minor: Type.Integer(),
+  discrepancy_count: Type.Integer(),
+  discrepancies: Type.Array(discrepancySchema),
+});
+export type ReconciliationResult = Static<typeof reconciliationResultSchema>;
+
+export const reconciliationSummarySchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  ran_at: Type.String({ format: 'date-time' }),
+  checked: Type.Integer(),
+  fees_posted_minor: Type.Integer(),
+  discrepancy_count: Type.Integer(),
+});
+export const reconciliationListSchema = Type.Object({
+  reconciliations: Type.Array(reconciliationSummarySchema),
+});
+export type ReconciliationList = Static<typeof reconciliationListSchema>;
+
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   created_at: Type.String(),

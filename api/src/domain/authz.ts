@@ -15,6 +15,7 @@ export const PERMISSION_ACTIONS = [
   'payments.refund',
   'payments.refund_over_ceiling',
   'ledger.reconcile',
+  'ledger.view',
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 

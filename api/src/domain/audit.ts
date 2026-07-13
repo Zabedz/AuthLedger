@@ -26,7 +26,8 @@ export type AuditEvent =
   | 'role_revoked'
   | 'admin_sessions_revoked'
   | 'payment_created'
-  | 'payment_refunded';
+  | 'payment_refunded'
+  | 'reconciliation_run';
 
 export interface AuditEntry {
   event: AuditEvent;

@@ -156,6 +156,15 @@ export interface ProviderIdentities {
   user_id: string;
 }
 
+export interface Reconciliations {
+  checked: number;
+  discrepancies: Json;
+  discrepancy_count: number;
+  fees_posted_minor: Int8;
+  id: Generated<string>;
+  ran_at: Generated<Timestamp>;
+}
+
 export interface Refunds {
   amount_minor: Int8;
   created_at: Generated<Timestamp>;
@@ -228,6 +237,7 @@ export interface DB {
   processed_sns_messages: ProcessedSnsMessages;
   provider_events: ProviderEvents;
   provider_identities: ProviderIdentities;
+  reconciliations: Reconciliations;
   refunds: Refunds;
   role_permissions: RolePermissions;
   roles: Roles;

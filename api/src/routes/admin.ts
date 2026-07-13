@@ -3,10 +3,14 @@ import {
   adminUserListSchema,
   auditListSchema,
   errorReplySchema,
+  ledgerBalancesSchema,
+  reconciliationListSchema,
+  reconciliationResultSchema,
   roleNameSchema,
   userRolesSchema,
 } from '@authledger/shared';
 import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
+import type Stripe from 'stripe';
 import { listAuditEvents, recordAudit } from '../domain/audit.js';
 import {
   assignRole,
@@ -15,9 +19,17 @@ import {
   revokeRole,
   rolesForUser,
 } from '../domain/authz.js';
+import { ledgerBalances } from '../domain/ledger.js';
+import { runAndRecordReconciliation } from '../domain/reconciliation.js';
 import { revokeAllSessions } from '../domain/sessions.js';
 import { authorize } from '../plugins/authz-guard.js';
 import { requestContextOf, type RouteDeps } from './deps.js';
+
+export interface AdminDeps extends RouteDeps {
+  stripe: Stripe;
+}
+
+const RECON_PAGE = 50;
 
 const USERS_PAGE = 50;
 const AUDIT_PAGE = 100;
@@ -32,7 +44,7 @@ const userRoleParams = Type.Object({
   role: roleNameSchema,
 });
 
-export const adminRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (app, { db }) => {
+export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { db, stripe }) => {
   app.get(
     '/users',
     {
@@ -136,6 +148,62 @@ export const adminRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (app, { d
         });
       }
       return reply.code(200).send({ revoked });
+    },
+  );
+
+  // Ledger balances per account and currency.
+  app.get(
+    '/ledger',
+    { ...authorize('ledger.view'), schema: { response: { 200: ledgerBalancesSchema } } },
+    async () => ({ balances: await ledgerBalances(db) }),
+  );
+
+  // Run reconciliation now (the scheduled job runs the same logic). Posts fees
+  // from the provider's balance transactions and reports any discrepancy.
+  app.post(
+    '/reconcile',
+    { ...authorize('ledger.reconcile'), schema: { response: { 200: reconciliationResultSchema } } },
+    async (req, reply) => {
+      const result = await runAndRecordReconciliation(db, stripe);
+      await recordAudit(db, {
+        event: 'reconciliation_run',
+        userId: req.auth!.user.id,
+        ...requestContextOf(req),
+        detail: { checked: result.checked, discrepancy_count: result.discrepancies.length },
+      });
+      return reply.code(200).send({
+        id: result.id,
+        checked: result.checked,
+        fees_posted_minor: result.feesPostedMinor,
+        discrepancy_count: result.discrepancies.length,
+        discrepancies: result.discrepancies.map((d) => ({
+          reference: d.reference,
+          amount_minor: d.amountMinor,
+          reason: d.reason,
+        })),
+      });
+    },
+  );
+
+  app.get(
+    '/reconciliations',
+    { ...authorize('ledger.view'), schema: { response: { 200: reconciliationListSchema } } },
+    async () => {
+      const rows = await db
+        .selectFrom('reconciliations')
+        .select(['id', 'ran_at', 'checked', 'fees_posted_minor', 'discrepancy_count'])
+        .orderBy('ran_at', 'desc')
+        .limit(RECON_PAGE)
+        .execute();
+      return {
+        reconciliations: rows.map((r) => ({
+          id: r.id,
+          ran_at: r.ran_at.toISOString(),
+          checked: r.checked,
+          fees_posted_minor: Number(r.fees_posted_minor),
+          discrepancy_count: r.discrepancy_count,
+        })),
+      };
     },
   );
 };

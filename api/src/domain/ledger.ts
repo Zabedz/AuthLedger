@@ -84,6 +84,30 @@ export async function postCharge(
   });
 }
 
+export interface LedgerBalance {
+  account: LedgerAccount;
+  currency: string;
+  balance_minor: number;
+}
+
+// Balances per account and currency for the admin ledger view. Grouped by
+// currency so mixed minor units are never summed together.
+export async function ledgerBalances(db: Kysely<DB>): Promise<LedgerBalance[]> {
+  const rows = await db
+    .selectFrom('ledger_postings')
+    .innerJoin('ledger_entries', 'ledger_entries.id', 'ledger_postings.entry_id')
+    .select(['ledger_postings.account as account', 'ledger_entries.currency as currency'])
+    .select((eb) => eb.fn.sum<string>('ledger_postings.amount_minor').as('balance'))
+    .groupBy(['ledger_postings.account', 'ledger_entries.currency'])
+    .orderBy('ledger_postings.account')
+    .execute();
+  return rows.map((r) => ({
+    account: r.account as LedgerAccount,
+    currency: r.currency,
+    balance_minor: Number(r.balance),
+  }));
+}
+
 // A refund or a dispute sends money back out: it is an expense and it reduces
 // what the provider owes. The internal event carries only what the ledger needs,
 // so the ledger stays free of provider types.

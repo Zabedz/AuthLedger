@@ -1,6 +1,7 @@
 import type Stripe from 'stripe';
 import type { InternalPaymentEvent, PaymentEventKind } from './payments.js';
 import type { InternalLedgerEvent } from './ledger.js';
+import type { Settlement } from './reconciliation.js';
 
 // The one place provider event and object type names appear. It turns a verified
 // Stripe event into an internal event, or null for a type we do not model yet
@@ -49,4 +50,22 @@ export function mapLedgerEvent(event: Stripe.Event): InternalLedgerEvent | null 
     default:
       return null;
   }
+}
+
+// A settled charge from a pulled balance transaction. Only charge/payment types
+// are settlements; payouts, transfers, and refunds are skipped, so their fees
+// are not posted as charge fees. This is the one place the balance-transaction
+// shape (the source charge and its intent) is read.
+export function mapBalanceTransaction(txn: Stripe.BalanceTransaction): Settlement | null {
+  if (txn.type !== 'charge' && txn.type !== 'payment') {
+    return null;
+  }
+  const source = txn.source as Stripe.Charge | null;
+  return {
+    balanceTxnId: txn.id,
+    intentId: typeof source?.payment_intent === 'string' ? source.payment_intent : null,
+    amountMinor: txn.amount,
+    feeMinor: txn.fee,
+    currency: txn.currency,
+  };
 }

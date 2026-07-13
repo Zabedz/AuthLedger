@@ -94,7 +94,7 @@ export async function buildServer(
   await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(mfaRoutes, { prefix: '/api/auth/mfa', ...routeDeps });
-  await app.register(adminRoutes, { prefix: '/api/admin', ...routeDeps });
+  await app.register(adminRoutes, { prefix: '/api/admin', ...routeDeps, stripe });
   await app.register(paymentRoutes, { prefix: '/api/payments', ...routeDeps, stripe });
   await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', config, db: deps.db, stripe });
   await app.register(oauthRoutes, {

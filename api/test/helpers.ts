@@ -98,6 +98,7 @@ export async function truncateAll(db: Kysely<DB>): Promise<void> {
   // The ledger is append-only (UPDATE/DELETE are refused by triggers), so
   // resetting it between tests needs TRUNCATE, which row triggers do not fire on.
   await sql`TRUNCATE ledger_postings, ledger_entries`.execute(db);
+  await db.deleteFrom('reconciliations').execute();
   await db.deleteFrom('audit_events').execute();
   await db.deleteFrom('email_dispatches').execute();
   await db.deleteFrom('auth_tokens').execute();
