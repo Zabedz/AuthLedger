@@ -40,6 +40,9 @@ jobs:
       - run: npm ci
       - run: npm run build -w shared
       - run: npm run typecheck
+      - run: npm run openapi:gen -w api
+      - name: Fail if the OpenAPI document drifted from the route schemas
+        run: git diff --exit-code -- docs/openapi.json
 
   test:
     if: github.event_name != 'schedule'

@@ -3,4 +3,5 @@ dist/
 coverage/
 package-lock.json
 api/src/db/types.ts
+docs/openapi.json
 *.md
