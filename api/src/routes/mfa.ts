@@ -32,7 +32,7 @@ export const mfaRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     '/setup',
     {
       preHandler: requireAuth,
-      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      config: { policy: 'self', rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: { response: { 200: mfaSetupReplySchema, 409: errorReplySchema } },
     },
     async (req, reply) => {
@@ -52,7 +52,7 @@ export const mfaRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     '/enable',
     {
       preHandler: requireAuth,
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'self', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: totpCodeSchema,
         response: { 200: recoveryCodesSchema, 400: errorReplySchema },
@@ -80,7 +80,7 @@ export const mfaRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     '/disable',
     {
       preHandler: requireAuth,
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'self', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: { body: mfaCodeSchema, response: { 204: Type.Null(), 400: errorReplySchema } },
     },
     async (req, reply) => {

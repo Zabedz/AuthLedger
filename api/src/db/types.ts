@@ -89,6 +89,11 @@ export interface OauthFlows {
   state: string;
 }
 
+export interface Permissions {
+  action: string;
+  description: string;
+}
+
 export interface Pgmigrations {
   id: Generated<number>;
   name: string;
@@ -108,6 +113,18 @@ export interface ProviderIdentities {
   user_id: string;
 }
 
+export interface RolePermissions {
+  action: string;
+  role_id: string;
+}
+
+export interface Roles {
+  created_at: Generated<Timestamp>;
+  description: string;
+  id: Generated<string>;
+  name: string;
+}
+
 export interface Sessions {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp;
@@ -117,6 +134,13 @@ export interface Sessions {
   revoked_at: Timestamp | null;
   token_hash: Buffer;
   user_agent: string | null;
+  user_id: string;
+}
+
+export interface UserRoles {
+  granted_at: Generated<Timestamp>;
+  granted_by: string | null;
+  role_id: string;
   user_id: string;
 }
 
@@ -142,9 +166,13 @@ export interface DB {
   mfa_challenges: MfaChallenges;
   mfa_recovery_codes: MfaRecoveryCodes;
   oauth_flows: OauthFlows;
+  permissions: Permissions;
   pgmigrations: Pgmigrations;
   processed_sns_messages: ProcessedSnsMessages;
   provider_identities: ProviderIdentities;
+  role_permissions: RolePermissions;
+  roles: Roles;
   sessions: Sessions;
+  user_roles: UserRoles;
   users: Users;
 }

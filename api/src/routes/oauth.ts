@@ -25,14 +25,16 @@ export const oauthRoutes: FastifyPluginAsyncTypebox<OAuthDeps> = async (app, dep
   }
 
   // Public: lets the sign-in screen show buttons only for wired-up providers.
-  app.get('/providers', { schema: { response: { 200: oauthProvidersSchema } } }, async () => ({
-    providers: Object.keys(clients),
-  }));
+  app.get(
+    '/providers',
+    { config: { policy: 'public' }, schema: { response: { 200: oauthProvidersSchema } } },
+    async () => ({ providers: Object.keys(clients) }),
+  );
 
   app.get(
     '/:provider/start',
     {
-      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 20, timeWindow: '1 minute' } },
       schema: { params: Type.Object({ provider: Type.String() }) },
     },
     async (req, reply) => {
@@ -70,7 +72,11 @@ export const oauthRoutes: FastifyPluginAsyncTypebox<OAuthDeps> = async (app, dep
   app.get(
     '/:provider/callback',
     {
-      config: { skipOriginCheck: true, rateLimit: { max: 20, timeWindow: '1 minute' } },
+      config: {
+        policy: 'public',
+        skipOriginCheck: true,
+        rateLimit: { max: 20, timeWindow: '1 minute' },
+      },
       schema: {
         params: Type.Object({ provider: Type.String() }),
         querystring: Type.Object({

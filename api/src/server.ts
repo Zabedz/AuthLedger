@@ -13,9 +13,11 @@ import {
   type OAuthProvider,
 } from './domain/oauth.js';
 import { loggerOptions, requestContext } from './logging.js';
+import { registerAuthzGuard } from './plugins/authz-guard.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
 import { registerSessionAuth } from './plugins/session-auth.js';
+import { adminRoutes } from './routes/admin.js';
 import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes, type HealthDeps } from './routes/health.js';
@@ -69,6 +71,7 @@ export async function buildServer(
   registerOriginCheck(app, config);
   await app.register(rateLimit, { global: false });
   await registerSessionAuth(app, config, deps.db);
+  registerAuthzGuard(app);
   await registerOpenapi(app, config);
 
   const routeDeps = { config, db: deps.db, enqueue: deps.enqueue };
@@ -77,6 +80,7 @@ export async function buildServer(
   await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(mfaRoutes, { prefix: '/api/auth/mfa', ...routeDeps });
+  await app.register(adminRoutes, { prefix: '/api/admin', ...routeDeps });
   await app.register(oauthRoutes, {
     prefix: '/api/auth/oauth',
     ...routeDeps,

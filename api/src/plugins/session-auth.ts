@@ -10,6 +10,7 @@ import {
   type User,
 } from '../domain/sessions.js';
 import { MFA_CHALLENGE_TTL_MINUTES } from '../domain/mfa.js';
+import { loadPermissions, type PermissionAction } from '../domain/authz.js';
 
 export const SESSION_COOKIE = 'al_session';
 export const MFA_CHALLENGE_COOKIE = 'al_mfa';
@@ -19,7 +20,7 @@ const MFA_COOKIE_PATH = '/api/auth/login/mfa';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    auth: { user: User; session: Session } | null;
+    auth: { user: User; session: Session; permissions: Set<PermissionAction> } | null;
   }
 }
 
@@ -79,7 +80,14 @@ export async function registerSessionAuth(
     if (!token) {
       return;
     }
-    req.auth = await findLiveSession(db, token);
+    const resolved = await findLiveSession(db, token);
+    if (!resolved) {
+      return;
+    }
+    // Permissions resolve per request from the user's roles, so a grant or
+    // revoke lands on the next request without touching the session.
+    const permissions = await loadPermissions(db, resolved.user.id);
+    req.auth = { ...resolved, permissions };
   });
 }
 
@@ -91,3 +99,18 @@ export const requireAuth: preHandlerHookHandler = async (
     return reply.code(401).send({ error: 'authentication required' });
   }
 };
+
+// Gate a route on a single permission. Unauthenticated is 401; authenticated
+// without the permission is 403. The route also declares this action in its
+// policy config (see authz-guard), which is what the deny-by-default boot check
+// verifies; this hook is the request-time enforcement of the same action.
+export function requirePermission(action: PermissionAction): preHandlerHookHandler {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.auth) {
+      return reply.code(401).send({ error: 'authentication required' });
+    }
+    if (!req.auth.permissions.has(action)) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+  };
+}

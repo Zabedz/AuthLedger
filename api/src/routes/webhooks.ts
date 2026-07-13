@@ -48,7 +48,11 @@ export const webhookRoutes: FastifyPluginAsyncTypebox<WebhookDeps> = async (app,
     '/ses-notifications',
     {
       // Authenticated by SNS signature, not a session cookie.
-      config: { skipOriginCheck: true, rateLimit: { max: 120, timeWindow: '1 minute' } },
+      config: {
+        policy: 'public',
+        skipOriginCheck: true,
+        rateLimit: { max: 120, timeWindow: '1 minute' },
+      },
       schema: { response: { 200: Type.Null(), 403: errorReplySchema } },
     },
     async (req, reply) => {

@@ -28,7 +28,7 @@ export const accountRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/verify-email',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: { body: tokenSchema, response: { 200: acceptedReplySchema, 400: errorReplySchema } },
     },
     async (req, reply) => {
@@ -54,7 +54,7 @@ export const accountRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/verify-email/resend',
     {
-      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: { body: emailRequestSchema, response: { 202: acceptedReplySchema } },
     },
     async (req, reply) => {
@@ -80,7 +80,7 @@ export const accountRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/password-reset/request',
     {
-      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: { body: emailRequestSchema, response: { 202: acceptedReplySchema } },
     },
     async (req, reply) => {
@@ -106,7 +106,7 @@ export const accountRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/password-reset',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: resetPasswordSchema,
         response: { 200: acceptedReplySchema, 400: errorReplySchema },
@@ -162,7 +162,11 @@ export const accountRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
 
   app.delete(
     '/account',
-    { preHandler: requireAuth, schema: { response: { 204: Type.Null() } } },
+    {
+      preHandler: requireAuth,
+      config: { policy: 'self' },
+      schema: { response: { 204: Type.Null() } },
+    },
     async (req, reply) => {
       const { user } = req.auth!;
       // Audit and delete in one transaction so a crash cannot leave a

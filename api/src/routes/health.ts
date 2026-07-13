@@ -13,6 +13,7 @@ export const healthRoutes: FastifyPluginAsyncTypebox<{ deps: HealthDeps }> = asy
   app.get(
     '/healthz',
     {
+      config: { policy: 'public' },
       schema: {
         description: 'Liveness. Checks nothing external so an outage cannot cause a restart loop.',
         response: { 200: healthzReplySchema },
@@ -24,6 +25,7 @@ export const healthRoutes: FastifyPluginAsyncTypebox<{ deps: HealthDeps }> = asy
   app.get(
     '/readyz',
     {
+      config: { policy: 'public' },
       schema: {
         description: 'Readiness. Verifies the database is reachable and migrations are applied.',
         response: { 200: readyzReplySchema, 503: readyzReplySchema },

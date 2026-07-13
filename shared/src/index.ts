@@ -93,6 +93,36 @@ export type RecoveryCodesReply = Static<typeof recoveryCodesSchema>;
 export const oauthProvidersSchema = Type.Object({ providers: Type.Array(Type.String()) });
 export type OAuthProvidersReply = Static<typeof oauthProvidersSchema>;
 
+// The assignable roles, mirroring ROLE_NAMES and the roles seeded in migration
+// 0006. Used to validate the :role path param on the admin grant/revoke routes.
+export const roleNameSchema = Type.Union([Type.Literal('admin'), Type.Literal('auditor')]);
+export type RoleNameValue = Static<typeof roleNameSchema>;
+
+export const adminUserSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  email: Type.String(),
+  email_verified: Type.Boolean(),
+  mfa_enabled: Type.Boolean(),
+  roles: Type.Array(roleNameSchema),
+  created_at: Type.String({ format: 'date-time' }),
+});
+export const adminUserListSchema = Type.Object({ users: Type.Array(adminUserSchema) });
+export type AdminUserList = Static<typeof adminUserListSchema>;
+
+export const auditEventSchema = Type.Object({
+  id: Type.String(),
+  event: Type.String(),
+  user_id: Type.Union([Type.String(), Type.Null()]),
+  ip: Type.Union([Type.String(), Type.Null()]),
+  at: Type.String({ format: 'date-time' }),
+  detail: Type.Unknown(),
+});
+export const auditListSchema = Type.Object({ events: Type.Array(auditEventSchema) });
+export type AuditList = Static<typeof auditListSchema>;
+
+export const userRolesSchema = Type.Object({ roles: Type.Array(roleNameSchema) });
+export type UserRolesReply = Static<typeof userRolesSchema>;
+
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   created_at: Type.String(),

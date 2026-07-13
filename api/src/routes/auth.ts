@@ -35,7 +35,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/register',
     {
-      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 5, timeWindow: '1 minute' } },
       schema: {
         body: credentialsSchema,
         response: { 202: acceptedReplySchema },
@@ -65,7 +65,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/login',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: credentialsSchema,
         response: { 200: loginReplySchema, 401: errorReplySchema },
@@ -123,7 +123,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app.post(
     '/login/mfa',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      config: { policy: 'public', rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: mfaCodeSchema,
         response: { 200: userEnvelopeSchema, 401: errorReplySchema },
@@ -175,7 +175,11 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
 
   app.post(
     '/logout',
-    { preHandler: requireAuth, schema: { response: { 204: Type.Null() } } },
+    {
+      preHandler: requireAuth,
+      config: { policy: 'self' },
+      schema: { response: { 204: Type.Null() } },
+    },
     async (req, reply) => {
       const { user, session } = req.auth!;
       await revokeSession(db, session.id, user.id);
@@ -194,6 +198,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     '/me',
     {
       preHandler: requireAuth,
+      config: { policy: 'self' },
       schema: { response: { 200: userEnvelopeSchema, 401: errorReplySchema } },
     },
     async (req, reply) => {
@@ -203,7 +208,11 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
 
   app.get(
     '/sessions',
-    { preHandler: requireAuth, schema: { response: { 200: sessionListSchema } } },
+    {
+      preHandler: requireAuth,
+      config: { policy: 'self' },
+      schema: { response: { 200: sessionListSchema } },
+    },
     async (req) => {
       const { user, session: current } = req.auth!;
       const sessions = await listLiveSessions(db, user.id);
@@ -224,6 +233,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     '/sessions/:id',
     {
       preHandler: requireAuth,
+      config: { policy: 'self' },
       schema: {
         params: Type.Object({ id: Type.String({ format: 'uuid' }) }),
         response: { 204: Type.Null(), 404: errorReplySchema },

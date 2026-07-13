@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { createDb, createPool } from './db/client.js';
 import { pendingMigrations } from './db/migrations.js';
+import { ensureAdminRole } from './domain/authz.js';
 import { createSmtpMailer } from './domain/mailer.js';
 import { createJobRunner } from './jobs/queue.js';
 import { buildServer } from './server.js';
@@ -28,6 +29,11 @@ const app = await buildServer(config, {
 // Started before listen so no request is served before the queue accepts work.
 const jobs = createJobRunner(config.databaseUrl, db, mailer, app.log);
 await jobs.start();
+
+// Grant the configured operator the admin role, so a fresh deploy has a way in.
+if (config.adminEmail) {
+  await ensureAdminRole(db, config.adminEmail);
+}
 
 const SHUTDOWN_DEADLINE_MS = 15_000;
 

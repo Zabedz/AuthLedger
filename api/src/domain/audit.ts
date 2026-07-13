@@ -21,7 +21,10 @@ export type AuditEvent =
   | 'mfa_failed'
   | 'recovery_code_used'
   | 'oauth_login'
-  | 'oauth_account_created';
+  | 'oauth_account_created'
+  | 'role_granted'
+  | 'role_revoked'
+  | 'admin_sessions_revoked';
 
 export interface AuditEntry {
   event: AuditEvent;
@@ -44,4 +47,31 @@ export async function recordAudit(db: Kysely<DB>, entry: AuditEntry): Promise<vo
       detail: JSON.stringify(entry.detail ?? {}),
     })
     .execute();
+}
+
+export interface AuditRow {
+  id: string;
+  event: string;
+  user_id: string | null;
+  ip: string | null;
+  at: string;
+  detail: unknown;
+}
+
+// The most recent events first, for the admin audit view.
+export async function listAuditEvents(db: Kysely<DB>, limit: number): Promise<AuditRow[]> {
+  const rows = await db
+    .selectFrom('audit_events')
+    .select(['id', 'event', 'user_id', 'ip', 'at', 'detail'])
+    .orderBy('at', 'desc')
+    .limit(limit)
+    .execute();
+  return rows.map((r) => ({
+    id: r.id,
+    event: r.event,
+    user_id: r.user_id,
+    ip: r.ip,
+    at: r.at.toISOString(),
+    detail: r.detail,
+  }));
 }

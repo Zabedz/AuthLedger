@@ -23,6 +23,8 @@ export interface Config {
   oauth: OAuthConfig;
   sesSnsTopicArn: string | undefined;
   stripeSecretKey: string | undefined;
+  // When set, the account with this email is granted the admin role at boot.
+  adminEmail: string | undefined;
 }
 
 export interface OAuthCredentials {
@@ -130,6 +132,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // other topic. Unset in dev and CI, where the topic does not exist.
   const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
 
+  const adminEmail = env.ADMIN_EMAIL || undefined;
+
   return {
     nodeEnv,
     port,
@@ -141,5 +145,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     oauth,
     sesSnsTopicArn,
     stripeSecretKey,
+    adminEmail,
   };
 }
