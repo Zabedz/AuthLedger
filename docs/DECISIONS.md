@@ -93,3 +93,41 @@ Consequences: one origin everywhere. The ALB target group probes
 check, so a database-touching probe would turn an RDS blip into a task
 replacement loop. `/api/readyz` is asserted by the deploy workflow after the
 migration step and stays available for e2e and humans.
+
+## ADR-008: Infrastructure as Terraform-dialect HCL, split by lifecycle (2026-07-13)
+
+Context: M1 needs provisioning that stands the AWS environment up and tears
+it down repeatedly, with drift detection, and reads well to reviewers.
+Decision: Terraform-dialect HCL, kept compatible with both the Terraform CLI
+(>= 1.4) and OpenTofu. CDK was rejected because CloudFormation's slow
+create/delete cycle punishes exactly this project's stand-up/teardown
+lifecycle, and because infrastructure-as-TypeScript invites sharing code with
+the app across a boundary that should stay dumb. Plain scripts were rejected
+for having no state, no drift detection, and no reliable teardown.
+Two root modules split by lifecycle, not by service. infra/persistent holds
+what must survive teardown at near-zero idle cost: the ECR repository, the
+SPA bucket, the CloudFront distribution (its stable default domain is what
+Stripe webhook registrations and OAuth redirect URIs point at), the GitHub
+Actions OIDC role, application secrets, and the origin-verify secret.
+infra/ephemeral holds everything that bills by the hour: VPC, ALB, ECS
+service, RDS, and the database credentials it generates.
+Consequences: the persistent distribution's /api origin must follow the
+ephemeral ALB, so stand-up is apply ephemeral, then apply persistent with the
+new ALB hostname; teardown reverses it, leaving the origin pointed at a
+placeholder that 502s while the environment is down. The deploy workflow owns
+that ordering. State lives in an S3 bucket created once by a documented
+bootstrap command, never in the repo.
+
+## ADR-009: M1 asserts the cookie contract structurally, not at deploy time (2026-07-13)
+
+Context: PLAN M1 acceptance asked for a deployed cookie round-trip proof, a
+criterion written when the SPA and API risked living on different registrable
+domains. The single-origin CloudFront topology removed that failure mode:
+browser, SPA, and API share one origin, so first-party cookie flow is
+structural, and no M1 endpoint sets a cookie to probe.
+Decision: M1's deploy smoke asserts TLS, /api/healthz, /api/readyz
+post-migration, and the SPA loading from the same origin. The cookie
+round-trip assertion moves to M2's e2e, where login sets a real session
+cookie through the deployed topology.
+Consequences: PLAN.md M1 acceptance is amended accordingly; the cookie test
+gains teeth at M2 instead of testing a synthetic endpoint at M1.

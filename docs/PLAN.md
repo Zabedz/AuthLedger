@@ -62,8 +62,9 @@ Acceptance:
 - The CloudFront URL serves the SPA placeholder and `/api/healthz` over valid
   HTTPS on the default `cloudfront.net` hostname (the reachability Stripe
   webhooks will need in M6).
-- A cookie set by the API is sent on subsequent requests from the SPA
-  (single-origin topology proven before any auth code depends on it).
+- The SPA and the API respond from one origin; the cookie round-trip is
+  structural under that topology and is asserted by M2's e2e once login sets
+  a real cookie (ADR-009).
 - The ALB accepts traffic only through CloudFront (managed prefix list plus a
   verified origin header).
 - Cost of the environment while up is documented; rollback procedure
