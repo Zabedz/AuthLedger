@@ -67,22 +67,24 @@ jobs:
           fi
           echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
 
-      # Migrations must precede cutover on standup and update alike, so the
-      # data layer and the migration task are applied first; the service (and
-      # on standup the ALB) arrives only in the full apply afterwards.
-      - name: Provision data layer and migration task
+      # Full apply builds (or on update rolls) the whole environment: VPC, ALB,
+      # RDS, ECS service, and the migrate task definition. On a first standup
+      # the service boots healthy on its liveness probe without the app schema;
+      # real traffic only arrives when CloudFront is repointed below, after
+      # migrations. On update the rolling deploy overlaps old and new code, so
+      # migrations follow expand/contract (docs/RESEARCH.md).
+      - name: Apply ephemeral stack
         working-directory: infra/ephemeral
         run: |
           terraform init $TF_BACKEND_ARGS
           terraform apply -auto-approve \
-            -target aws_ecs_task_definition.migrate \
-            -target aws_ecs_cluster.main \
             -var "state_bucket=$STATE_BUCKET" \
             -var "image_tag=$IMAGE_TAG"
           echo "CLUSTER=$(terraform output -raw cluster_name)" >> "$GITHUB_ENV"
           echo "MIGRATE_FAMILY=$(terraform output -raw migrate_task_family)" >> "$GITHUB_ENV"
           echo "SUBNETS=$(terraform output -json task_subnets | jq -r 'join(",")')" >> "$GITHUB_ENV"
           echo "TASK_SG=$(terraform output -raw task_security_group)" >> "$GITHUB_ENV"
+          echo "ALB_DNS=$(terraform output -raw alb_dns_name)" >> "$GITHUB_ENV"
 
       - name: Run migrations before cutover
         run: |
@@ -102,18 +104,12 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' --output text)
           if [ "$exit_code" != "0" ]; then
             echo "migration task exited with $exit_code"
+            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+              --query 'tasks[0].{stopped:stoppedReason,containers:containers[].reason}'
             exit 1
           fi
 
-      - name: Apply ephemeral stack
-        working-directory: infra/ephemeral
-        run: |
-          terraform apply -auto-approve \
-            -var "state_bucket=$STATE_BUCKET" \
-            -var "image_tag=$IMAGE_TAG"
-          echo "ALB_DNS=$(terraform output -raw alb_dns_name)" >> "$GITHUB_ENV"
-
-      - name: Point CloudFront at the new ALB
+      - name: Point CloudFront at the new ALB (cutover)
         working-directory: infra/persistent
         run: |
           terraform init $TF_BACKEND_ARGS
