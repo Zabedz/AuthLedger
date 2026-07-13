@@ -9,7 +9,30 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Json = JsonValue;
+
+export type JsonArray = JsonValue[];
+
+export type JsonObject = {
+  [x: string]: JsonValue | undefined;
+};
+
+export type JsonPrimitive = boolean | number | string | null;
+
+export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface AuditEvents {
+  at: Generated<Timestamp>;
+  detail: Generated<Json>;
+  event: string;
+  id: Generated<string>;
+  ip: string | null;
+  session_id: string | null;
+  user_agent: string | null;
+  user_id: string | null;
+}
 
 export interface Pgmigrations {
   id: Generated<number>;
@@ -17,6 +40,31 @@ export interface Pgmigrations {
   run_on: Timestamp;
 }
 
+export interface Sessions {
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: Generated<string>;
+  ip: string | null;
+  last_seen_at: Generated<Timestamp>;
+  revoked_at: Timestamp | null;
+  token_hash: Buffer;
+  user_agent: string | null;
+  user_id: string;
+}
+
+export interface Users {
+  created_at: Generated<Timestamp>;
+  email: string;
+  failed_login_count: Generated<number>;
+  id: Generated<string>;
+  locked_until: Timestamp | null;
+  password_hash: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DB {
+  audit_events: AuditEvents;
   pgmigrations: Pgmigrations;
+  sessions: Sessions;
+  users: Users;
 }

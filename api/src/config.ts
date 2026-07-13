@@ -9,7 +9,16 @@ export interface Config {
   port: number;
   logLevel: LogLevel;
   databaseUrl: string;
+  appOrigin: string;
   stripeSecretKey: string | undefined;
+}
+
+function safeOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -33,6 +42,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('DATABASE_URL is required');
   }
 
+  const appOrigin =
+    env.APP_ORIGIN ?? (nodeEnv === 'production' ? undefined : 'http://localhost:5173');
+  if (!appOrigin) {
+    throw new Error('APP_ORIGIN is required in production (the browser origin of the SPA)');
+  }
+  // Must equal what a browser sends as Origin: an exact match against the
+  // canonical form rejects a default port or an uppercase host, either of
+  // which would 403 every state-changing request in production.
+  if (!/^https?:\/\//.test(appOrigin) || safeOrigin(appOrigin) !== appOrigin) {
+    throw new Error(`APP_ORIGIN must be the canonical scheme://host origin; got "${appOrigin}"`);
+  }
+
   const stripeSecretKey = env.STRIPE_SECRET_KEY || undefined;
   if (stripeSecretKey && nodeEnv !== 'production' && !stripeSecretKey.startsWith('sk_test_')) {
     throw new Error(
@@ -41,5 +62,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
-  return { nodeEnv, port, logLevel, databaseUrl, stripeSecretKey };
+  return { nodeEnv, port, logLevel, databaseUrl, appOrigin, stripeSecretKey };
 }
