@@ -193,3 +193,36 @@ resend and reset-request endpoints do a token-issue plus enqueue only on a
 match and run no argon2, so a registered address responds measurably slower
 there; that residual channel is accepted because the deployed environment
 holds only developer-owned addresses (docs/DATA.md).
+
+## ADR-013: Deploy-pipeline fixes from the first real standup (2026-07-13)
+
+Context: M1 was authored and offline-validated, then run against a real AWS
+account for the first time. Five gaps surfaced that neither terraform validate
+nor actionlint can catch, because they only appear against live infrastructure.
+Decision and fixes, in the order they surfaced:
+1. The deploy workflow did not pass the AWS region to terraform, so applies
+   defaulted to us-east-1 while the account and state were us-west-2. Fixed
+   with TF_VAR_region in the workflow env.
+2. GitHub-hosted runners no longer ship terraform preinstalled (exit 127).
+   Added hashicorp/setup-terraform (pinned, terraform_wrapper: false so
+   `terraform output -raw` stays clean).
+3. The "provision data layer, then migrate, then full apply" ordering did not
+   work: the migrate task definition depends only on the secret ARN, not RDS or
+   the public subnets, so a targeted apply created neither the database nor the
+   networking the migration RunTask needs. Reworked to a full ephemeral apply
+   first, then migrations, then the CloudFront cutover. On a first standup the
+   ECS service boots healthy on its liveness probe before the app schema
+   exists and real traffic only arrives at the cutover; on update the rolling
+   deploy overlaps old and new code, so migrations follow expand/contract.
+4. RDS 18 forces SSL (rds.force_ssl); the app, pg-boss, and node-pg-migrate all
+   connected in plaintext and every task crashed on boot. Fixed by adding
+   sslmode=no-verify to the database URL secret, which all three clients read.
+   Encrypted, VPC-internal, no CA verification; verify-full with the RDS CA
+   bundle is the documented upgrade.
+5. With those fixed, the standup completed and the deployed app passed
+   end-to-end verification (health, register, login, cookie round-trip, CSRF,
+   TLS).
+Consequences: the deploy-first sequencing paid off exactly as intended, flushing
+these out before any feature depended on the pipeline. The environment is torn
+down after proving; the fixes stay in the workflow and infra for the next
+standup.

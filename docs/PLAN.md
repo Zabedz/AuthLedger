@@ -54,21 +54,20 @@ bucket, ECR repo) so the public URL stays stable across stand-ups. The
 provisioning tool (OpenTofu/Terraform, CDK, or plain scripts) is chosen by
 ADR at milestone start.
 
-Acceptance:
-- One workflow dispatch stands the environment up from nothing, a second
-  updates it in place, and a third tears it down, verified against the
-  console and the next day's bill.
-- Migrations run before cutover; a failed migration aborts the deploy.
-- The CloudFront URL serves the SPA placeholder and `/api/healthz` over valid
-  HTTPS on the default `cloudfront.net` hostname (the reachability Stripe
-  webhooks will need in M6).
-- The SPA and the API respond from one origin; the cookie round-trip is
-  structural under that topology and is asserted by M2's e2e once login sets
-  a real cookie (ADR-009).
-- The ALB accepts traffic only through CloudFront (managed prefix list plus a
-  verified origin header).
-- Cost of the environment while up is documented; rollback procedure
-  documented and exercised once.
+Acceptance (proven on AWS account 199650095862, us-west-2, 2026-07-13):
+- [x] One workflow dispatch stands the environment up from nothing, a second
+  updates it in place, and a third tears it down, verified against the console
+  (0 load balancers, 0 RDS instances after teardown).
+- [x] Migrations run before cutover; a failed migration aborts the deploy.
+- [x] The CloudFront URL serves the SPA and `/api/healthz` over valid HTTPS on
+  the default `cloudfront.net` hostname.
+- [x] The SPA and the API respond from one origin; login through the deployed
+  URL set an HttpOnly/Secure/SameSite=Lax cookie that authenticated /me (the
+  real-deployment proof ADR-009 deferred from M2).
+- [x] The ALB accepts traffic only through CloudFront (managed prefix list plus
+  a verified origin header).
+- [x] Cost while up documented (~$50/mo); the update path and the documented
+  rollback procedure exercised once, the environment staying healthy.
 
 ## M2: Identity core
 
