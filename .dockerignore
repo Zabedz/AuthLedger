@@ -1,0 +1,11 @@
+.git
+node_modules
+**/node_modules
+**/dist
+web/*
+!web/package.json
+docs
+*.md
+.env
+compose.yaml
+Makefile
