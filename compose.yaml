@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_USER: authledger
+      POSTGRES_PASSWORD: authledger
+      POSTGRES_DB: authledger
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      # postgres:18+ expects the mount one level up from the old data path.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U authledger -d authledger']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+
+  stripe-cli:
+    profiles: ['stripe']
+    image: stripe/stripe-cli:v1.43.7
+    command: 'listen --forward-to http://host.docker.internal:8000/api/webhooks/stripe'
+    environment:
+      # Empty until STRIPE_SECRET_KEY is set in .env; the CLI refuses to start without it.
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+volumes:
+  pgdata:
