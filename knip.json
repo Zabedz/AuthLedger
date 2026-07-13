@@ -1,0 +1,4 @@
+{
+  "ignoreDependencies": ["pino-pretty"],
+  "ignoreExportsUsedInFile": true
+}
