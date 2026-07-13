@@ -350,3 +350,38 @@ seed the money capabilities as permission rows and collapse MoneyCapability into
 PermissionAction, confirm the refund ceiling value (possibly config, not
 source), and validate a refund amount is positive before the policy check (the
 pure function does not range-check its input).
+
+## ADR-018: Payments foundation: webhook inbox and internal event model (2026-07-13)
+
+Context: M6 adds Stripe payments. The account-independent parts land first (the
+webhook inbox, the mapping to an internal model, and payment views); the live
+PaymentIntent and refund flow (M6b) needs a Stripe test key and builds on these
+seams.
+Decision: Stripe stays behind an anti-corruption boundary. The webhook route
+verifies the signature and hands the raw event to mapStripeEvent, the only
+module that names Stripe event or object types; it returns an
+InternalPaymentEvent (defined in the Stripe-free payments domain) or null for a
+type not modeled yet. Everything downstream, including M7's ledger, sees only
+the internal model. The inbox is provider_events keyed by the Stripe event id:
+every delivery is recorded once, so a replay conflicts and is a no-op, and the
+claim-and-apply runs in one transaction so a processing failure rolls the claim
+back and the retry reprocesses. An event with no handler is stored 'unhandled',
+not failed, so a type modeled later is not lost. Out-of-order deliveries are
+absorbed by a last_event_at high-water mark plus a terminal-status lock
+(succeeded, failed, and canceled never move), so a late event is a no-op rather
+than a downgrade. Signature verification needs the exact bytes, so the Stripe
+plugin keeps the raw request buffer through a plugin-scoped application/json
+parser while other routes keep JSON parsing; without a webhook secret the route
+fails closed with a 503. The M5 placeholder MoneyCapability type collapses into
+the RBAC PermissionAction: the money actions are seeded in migration 0007 and
+granted to admin, and payment views are gated 'self' with the
+owner-or-payments.view_any decision made in the policy module, not the route.
+Money is integer minor units; amount_minor is bigint in Postgres, surfaced as a
+JS number in the view, which is exact for realistic amounts.
+Consequences: M6b adds PaymentIntent creation (our idempotency_key plus Stripe's
+idempotency key), refunds, and the SPA Payment Element against these seams
+without touching the inbox. The Stripe secret key and webhook signing secret are
+required for the live flow. Deferred: a dedicated finance role (admin holds all
+money permissions for now); carrying money as a string end to end if amounts
+could exceed 2^53 minor units; disputes (M7) land as 'unhandled' inbox rows
+until their handler exists.
