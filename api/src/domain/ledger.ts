@@ -68,7 +68,7 @@ export async function accountBalance(db: Kysely<DB>, account: LedgerAccount): Pr
 }
 
 // A settled charge: the provider owes the gross, recognized as revenue. Fees
-// are posted separately from the provider's balance transactions (M7b).
+// are posted separately from the provider's balance transactions (reconcile).
 export async function postCharge(
   db: Kysely<DB>,
   input: { providerIntentId: string; amountMinor: number; currency: string },
@@ -80,6 +80,36 @@ export async function postCharge(
     postings: [
       { account: 'stripe_receivable', amountMinor: input.amountMinor },
       { account: 'revenue', amountMinor: -input.amountMinor },
+    ],
+  });
+}
+
+// A refund or a dispute sends money back out: it is an expense and it reduces
+// what the provider owes. The internal event carries only what the ledger needs,
+// so the ledger stays free of provider types.
+export interface InternalLedgerEvent {
+  kind: 'refund' | 'dispute';
+  reference: string;
+  amountMinor: number;
+  currency: string;
+}
+
+const EXPENSE_ACCOUNT: Record<InternalLedgerEvent['kind'], LedgerAccount> = {
+  refund: 'refunds',
+  dispute: 'disputes',
+};
+
+export async function applyLedgerEvent(
+  db: Kysely<DB>,
+  event: InternalLedgerEvent,
+): Promise<boolean> {
+  return postEntry(db, {
+    kind: event.kind,
+    reference: event.reference,
+    currency: event.currency,
+    postings: [
+      { account: EXPENSE_ACCOUNT[event.kind], amountMinor: event.amountMinor },
+      { account: 'stripe_receivable', amountMinor: -event.amountMinor },
     ],
   });
 }

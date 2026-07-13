@@ -6,8 +6,8 @@ import type { Kysely } from 'kysely';
 import type { Config } from '../config.js';
 import type { DB } from '../db/types.js';
 import { applyPaymentEvent } from '../domain/payments.js';
-import { postCharge } from '../domain/ledger.js';
-import { mapStripeEvent } from '../domain/stripe-mapping.js';
+import { applyLedgerEvent, postCharge } from '../domain/ledger.js';
+import { mapLedgerEvent, mapStripeEvent } from '../domain/stripe-mapping.js';
 
 // constructEvent is HMAC over the webhook secret and never calls the API, so the
 // client needs no live key when only verifying webhooks. Named so it reads as a
@@ -76,6 +76,7 @@ export const stripeWebhookRoutes: FastifyPluginAsyncTypebox<StripeWebhookDeps> =
       }
 
       const internal = mapStripeEvent(event);
+      const ledgerEvent = mapLedgerEvent(event);
 
       // Claim the event id and process in one transaction: a replay conflicts and
       // is a no-op, and a processing failure rolls the claim back so the Stripe
@@ -88,7 +89,7 @@ export const stripeWebhookRoutes: FastifyPluginAsyncTypebox<StripeWebhookDeps> =
           .values({
             id: event.id,
             type: event.type,
-            status: internal ? 'processed' : 'unhandled',
+            status: internal || ledgerEvent ? 'processed' : 'unhandled',
             payload: JSON.stringify(event),
           })
           .onConflict((oc) => oc.column('id').doNothing())
@@ -121,6 +122,11 @@ export const stripeWebhookRoutes: FastifyPluginAsyncTypebox<StripeWebhookDeps> =
               currency: payment.currency,
             });
           }
+        }
+        // A refund or dispute posts to the ledger; it does not touch the payment
+        // row, so it is independent of the payment-status branch above.
+        if (ledgerEvent) {
+          await applyLedgerEvent(trx, ledgerEvent);
         }
       });
 
