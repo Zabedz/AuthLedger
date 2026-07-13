@@ -408,9 +408,18 @@ publishable key (never the secret or webhook secret) for the SPA. These endpoint
 take the shared injected Stripe client, so tests drive them with a stub and no
 network.
 Consequences: the SPA Payment Element (M6c) consumes /config and the client
-secret from create. Deferred to M7: reconciliation to catch an out-of-band
-'unmatched' event, refund and dispute ledger postings, and a finance role holding
-payments.refund_over_ceiling (admin holds it now). The review that shaped this
-ADR (a four-lens adversarial pass) caught the split-refund ceiling bypass, the
-same-amount refund idempotency-key collision, the non-idempotent create audit,
-and the unwrapped Stripe error path; all are closed here.
+secret from create. The intent is card only (payment_method_types: ['card']),
+which renders a deterministic card form; the SPA mounts the Payment Element with
+the client secret and confirms with redirect: 'if_required'. The client mints one
+idempotency key per attempt (rotated when the amount changes or a payment
+finishes), so a resubmit is one charge. The full browser confirm cannot be
+automated: Stripe Radar serves an hCaptcha to automated browsers, so the click
+through to settlement was proven with the server-side live flow (create, confirm
+a test card via the API, webhook to succeeded) rather than a headless e2e, and
+the Payment Element mounting/rendering was verified in a real browser. Deferred
+to M7: reconciliation to catch an out-of-band 'unmatched' event, refund and
+dispute ledger postings, and a finance role holding payments.refund_over_ceiling
+(admin holds it now). The reviews that shaped this ADR (a four-lens adversarial
+pass on the API, then a pass on the SPA) caught the split-refund ceiling bypass,
+the same-amount refund idempotency-key collision, the non-idempotent create
+audit, and the unwrapped Stripe error path; all are closed here.
