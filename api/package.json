@@ -12,7 +12,7 @@
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create -j sql",
-    "codegen": "kysely-codegen --dialect postgres --out-file src/db/types.ts",
+    "codegen": "kysely-codegen --dialect postgres --exclude-pattern \"pgboss.*\" --out-file src/db/types.ts",
     "seed": "tsx --env-file=../.env src/seed.ts"
   },
   "dependencies": {
