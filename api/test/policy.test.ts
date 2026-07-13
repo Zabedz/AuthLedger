@@ -6,10 +6,10 @@ import {
   canViewPayment,
   REFUND_CEILING_MINOR,
   type MoneyActor,
-  type MoneyCapability,
 } from '../src/domain/policy.js';
+import type { PermissionAction } from '../src/domain/authz.js';
 
-function actor(userId: string, ...capabilities: MoneyCapability[]): MoneyActor {
+function actor(userId: string, ...capabilities: PermissionAction[]): MoneyActor {
   return { userId, capabilities: new Set(capabilities) };
 }
 

@@ -207,6 +207,10 @@ describe('role resolution and management', () => {
 
     expect([...(await loadPermissions(ctx.db, admin.id))].sort()).toEqual([
       'audit.read',
+      'ledger.reconcile',
+      'payments.refund',
+      'payments.refund_over_ceiling',
+      'payments.view_any',
       'roles.assign',
       'sessions.revoke_any',
       'users.read',
