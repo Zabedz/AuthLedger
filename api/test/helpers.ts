@@ -23,6 +23,7 @@ export const testConfig: Config = {
     pass: undefined,
     from: 'test@authledger.test',
   },
+  sesSnsTopicArn: undefined,
   stripeSecretKey: undefined,
 };
 
@@ -83,6 +84,8 @@ export async function truncateAll(db: Kysely<DB>): Promise<void> {
   await db.deleteFrom('audit_events').execute();
   await db.deleteFrom('email_dispatches').execute();
   await db.deleteFrom('auth_tokens').execute();
+  await db.deleteFrom('processed_sns_messages').execute();
+  await db.deleteFrom('email_suppressions').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('users').execute();
 }
