@@ -1,9 +1,10 @@
 // Fine-grained authorization for money operations: the rules a single RBAC
 // permission cannot express on its own, namely resource ownership and amount
 // ceilings. These are pure functions returning a decision plus a reason, so the
-// money endpoints in M6/M7 call them and record the reason on the audit entry
-// for both allow and deny. Capabilities are resolved from the RBAC permission
-// set by the caller, which keeps these functions database-free and unit-testable.
+// money endpoints call them and record the reason on the audit entry for both
+// allow and deny. The capability set is the caller's RBAC permissions, which
+// keeps these functions database-free and unit-testable.
+import type { PermissionAction } from './authz.js';
 
 export interface PolicyDecision {
   allowed: boolean;
@@ -13,12 +14,9 @@ export interface PolicyDecision {
 const allow = (reason: string): PolicyDecision => ({ allowed: true, reason });
 const deny = (reason: string): PolicyDecision => ({ allowed: false, reason });
 
-export type MoneyCapability =
-  'payments.view_any' | 'payments.refund' | 'payments.refund_over_ceiling' | 'ledger.reconcile';
-
 export interface MoneyActor {
   userId: string;
-  capabilities: ReadonlySet<MoneyCapability>;
+  capabilities: ReadonlySet<PermissionAction>;
 }
 
 // A payment as the policy needs to see it: who owns it and how much it moves, in

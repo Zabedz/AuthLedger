@@ -23,6 +23,9 @@ export interface Config {
   oauth: OAuthConfig;
   sesSnsTopicArn: string | undefined;
   stripeSecretKey: string | undefined;
+  // The signing secret for the Stripe webhook endpoint (whsec_...); without it
+  // the webhook route rejects every delivery.
+  stripeWebhookSecret: string | undefined;
   // When set, the account with this email is granted the admin role at boot.
   adminEmail: string | undefined;
   // Off only for the browser e2e, where many journeys share one server and one
@@ -113,6 +116,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
+  const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET || undefined;
+
   // 32-byte AES key (base64) that encrypts TOTP secrets at rest. Required in
   // production; dev and test fall back to a fixed key.
   let encryptionKey = DEV_ENCRYPTION_KEY;
@@ -149,6 +154,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     oauth,
     sesSnsTopicArn,
     stripeSecretKey,
+    stripeWebhookSecret,
     adminEmail,
     rateLimitEnabled,
   };

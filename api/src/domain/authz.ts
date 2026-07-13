@@ -3,13 +3,18 @@ import type { DB } from '../db/types.js';
 import { recordAudit } from './audit.js';
 
 // The fixed set of authorization actions, mirroring the permissions seeded in
-// migration 0006. A route requires one of these; adding an action means a
-// migration row and a line here, so the type and the table stay in step.
+// migrations 0006 (identity) and 0007 (money). A route or a policy requires one
+// of these; adding an action means a migration row and a line here, so the type
+// and the table stay in step (asserted by a test).
 export const PERMISSION_ACTIONS = [
   'users.read',
   'roles.assign',
   'audit.read',
   'sessions.revoke_any',
+  'payments.view_any',
+  'payments.refund',
+  'payments.refund_over_ceiling',
+  'ledger.reconcile',
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 

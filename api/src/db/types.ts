@@ -89,6 +89,19 @@ export interface OauthFlows {
   state: string;
 }
 
+export interface Payments {
+  amount_minor: Int8;
+  created_at: Generated<Timestamp>;
+  currency: string;
+  id: Generated<string>;
+  idempotency_key: string;
+  last_event_at: Timestamp | null;
+  provider_intent_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
 export interface Permissions {
   action: string;
   description: string;
@@ -103,6 +116,14 @@ export interface Pgmigrations {
 export interface ProcessedSnsMessages {
   message_id: string;
   received_at: Generated<Timestamp>;
+}
+
+export interface ProviderEvents {
+  id: string;
+  payload: Json;
+  received_at: Generated<Timestamp>;
+  status: string;
+  type: string;
 }
 
 export interface ProviderIdentities {
@@ -166,9 +187,11 @@ export interface DB {
   mfa_challenges: MfaChallenges;
   mfa_recovery_codes: MfaRecoveryCodes;
   oauth_flows: OauthFlows;
+  payments: Payments;
   permissions: Permissions;
   pgmigrations: Pgmigrations;
   processed_sns_messages: ProcessedSnsMessages;
+  provider_events: ProviderEvents;
   provider_identities: ProviderIdentities;
   role_permissions: RolePermissions;
   roles: Roles;

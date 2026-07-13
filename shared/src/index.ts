@@ -131,6 +131,26 @@ export type AuditList = Static<typeof auditListSchema>;
 export const userRolesSchema = Type.Object({ roles: Type.Array(roleNameSchema) });
 export type UserRolesReply = Static<typeof userRolesSchema>;
 
+export const paymentStatusSchema = Type.Union([
+  Type.Literal('created'),
+  Type.Literal('processing'),
+  Type.Literal('succeeded'),
+  Type.Literal('failed'),
+  Type.Literal('canceled'),
+]);
+
+export const paymentSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  amount_minor: Type.Integer(),
+  currency: Type.String(),
+  status: paymentStatusSchema,
+  created_at: Type.String({ format: 'date-time' }),
+});
+export type Payment = Static<typeof paymentSchema>;
+
+export const paymentListSchema = Type.Object({ payments: Type.Array(paymentSchema) });
+export type PaymentList = Static<typeof paymentListSchema>;
+
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   created_at: Type.String(),

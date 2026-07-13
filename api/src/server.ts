@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import type Stripe from 'stripe';
 import rateLimit from '@fastify/rate-limit';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import type { Kysely } from 'kysely';
@@ -23,6 +24,8 @@ import { authRoutes } from './routes/auth.js';
 import { healthRoutes, type HealthDeps } from './routes/health.js';
 import { mfaRoutes } from './routes/mfa.js';
 import { oauthRoutes } from './routes/oauth.js';
+import { paymentRoutes } from './routes/payments.js';
+import { stripeWebhookRoutes } from './routes/stripe-webhooks.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
 export interface ServerDeps {
@@ -31,6 +34,8 @@ export interface ServerDeps {
   enqueue: EmailEnqueuer;
   // Tests inject stub OAuth clients; production builds them from config.
   oauthClients?: Partial<Record<OAuthProvider, OAuthClient>>;
+  // Tests inject a Stripe client; production builds one from config.
+  stripe?: Stripe;
 }
 
 export interface ServerOptions {
@@ -83,6 +88,13 @@ export async function buildServer(
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(mfaRoutes, { prefix: '/api/auth/mfa', ...routeDeps });
   await app.register(adminRoutes, { prefix: '/api/admin', ...routeDeps });
+  await app.register(paymentRoutes, { prefix: '/api/payments', ...routeDeps });
+  await app.register(stripeWebhookRoutes, {
+    prefix: '/api/webhooks',
+    config,
+    db: deps.db,
+    stripe: deps.stripe,
+  });
   await app.register(oauthRoutes, {
     prefix: '/api/auth/oauth',
     ...routeDeps,

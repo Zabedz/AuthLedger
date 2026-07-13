@@ -27,6 +27,7 @@ export const testConfig: Config = {
   oauth: { google: undefined, github: undefined },
   sesSnsTopicArn: undefined,
   stripeSecretKey: undefined,
+  stripeWebhookSecret: 'whsec_test_secret',
   adminEmail: undefined,
   rateLimitEnabled: true,
 };
@@ -94,6 +95,8 @@ export async function truncateAll(db: Kysely<DB>): Promise<void> {
   await db.deleteFrom('provider_identities').execute();
   await db.deleteFrom('processed_sns_messages').execute();
   await db.deleteFrom('email_suppressions').execute();
+  await db.deleteFrom('provider_events').execute();
+  await db.deleteFrom('payments').execute();
   await db.deleteFrom('user_roles').execute();
   await db.deleteFrom('sessions').execute();
   await db.deleteFrom('users').execute();
