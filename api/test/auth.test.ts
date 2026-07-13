@@ -41,28 +41,35 @@ async function auditEvents() {
 }
 
 describe('registration', () => {
-  it('creates a user and audits it with actor context', async () => {
+  it('creates a user, audits it with actor context, and sends verification', async () => {
     const res = await register();
-    expect(res.statusCode).toBe(201);
-    expect(res.json().user.email).toBe(EMAIL);
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ status: 'accepted' });
 
     const events = await auditEvents();
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ event: 'user_registered' });
     expect(events[0]!.ip).toBeTruthy();
     expect(events[0]!.user_agent).toBeTruthy();
+
+    expect(ctx.sent).toHaveLength(1);
+    expect(ctx.sent[0]!.subject).toMatch(/verify/i);
   });
 
-  it('rejects a duplicate email', async () => {
-    await register();
-    const res = await register();
-    expect(res.statusCode).toBe(409);
+  it('answers a duplicate registration identically and sends no second email', async () => {
+    const first = await register();
+    ctx.sent.length = 0;
+    const second = await register();
+    expect(second.statusCode).toBe(first.statusCode);
+    expect(second.json()).toEqual(first.json());
+    expect(ctx.sent).toHaveLength(0);
   });
 
   it('treats email case-insensitively', async () => {
     await register('Ada@Example.com');
-    const res = await register('ada@EXAMPLE.com');
-    expect(res.statusCode).toBe(409);
+    ctx.sent.length = 0;
+    await register('ada@EXAMPLE.com');
+    expect(ctx.sent).toHaveLength(0);
   });
 
   it('rejects a short password at the schema boundary', async () => {

@@ -31,6 +31,8 @@ export default defineConfig({
         LOG_LEVEL: 'warn',
         DATABASE_URL: TEST_DATABASE_URL,
         APP_ORIGIN: `http://localhost:${WEB_PORT}`,
+        SMTP_HOST: 'localhost',
+        SMTP_PORT: String(process.env.MAILPIT_SMTP_PORT ?? 1025),
       },
     },
     {
