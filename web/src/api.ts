@@ -8,6 +8,9 @@ import type {
   MeReply,
   MfaSetupReply,
   OAuthProvidersReply,
+  PaymentConfig,
+  PaymentIntentReply,
+  PaymentList,
   RecoveryCodesReply,
   RoleNameValue,
   SessionList,
@@ -69,4 +72,12 @@ export const api = {
     request<UserRolesReply>(`/admin/users/${userId}/roles/${role}`, { method: 'PUT' }),
   revokeRole: (userId: string, role: RoleNameValue) =>
     request<UserRolesReply>(`/admin/users/${userId}/roles/${role}`, { method: 'DELETE' }),
+  paymentConfig: () => request<PaymentConfig>('/payments/config'),
+  payments: () => request<PaymentList>('/payments'),
+  createPayment: (amount_minor: number, currency: string, idempotencyKey: string) =>
+    request<PaymentIntentReply>('/payments', {
+      method: 'POST',
+      body: JSON.stringify({ amount_minor, currency }),
+      headers: { 'idempotency-key': idempotencyKey },
+    }),
 };

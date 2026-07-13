@@ -6,8 +6,17 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useState } from 'react';
+import { loadStripe, type Stripe as StripeJs } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import type { Credentials, RoleNameValue } from '@authledger/shared';
 import { ApiError, api } from './api.js';
+
+// Load Stripe.js once (the app serves a single publishable key).
+let stripePromise: Promise<StripeJs | null> | null = null;
+function getStripe(publishableKey: string): Promise<StripeJs | null> {
+  stripePromise ??= loadStripe(publishableKey);
+  return stripePromise;
+}
 
 const ASSIGNABLE_ROLES: RoleNameValue[] = ['admin', 'auditor'];
 
@@ -352,6 +361,120 @@ function AdminPanel({ canAssign }: { canAssign: boolean }) {
   );
 }
 
+// The card step: mount once the intent exists (Elements needs its client
+// secret). confirmPayment with redirect: 'if_required' settles a card inline;
+// the webhook then moves the payment to succeeded.
+function PayForm({ onPaid }: { onPaid: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [error, setError] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!stripe || !elements) return;
+        setPaying(true);
+        setError(null);
+        const result = await stripe.confirmPayment({
+          elements,
+          confirmParams: { return_url: window.location.origin },
+          redirect: 'if_required',
+        });
+        if (result.error) {
+          setError(result.error.message ?? 'Payment failed');
+          setPaying(false);
+        } else {
+          onPaid();
+        }
+      }}
+    >
+      <PaymentElement />
+      <button type="submit" disabled={!stripe || paying}>
+        Pay
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
+function Payments() {
+  const qc = useQueryClient();
+  const config = useQuery({ queryKey: ['payment-config'], queryFn: api.paymentConfig });
+  const list = useQuery({ queryKey: ['payments'], queryFn: api.payments });
+  const [dollars, setDollars] = useState('10.00');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // One key per attempt: reused across resubmits (so a retry is one charge) and
+  // rotated when the amount changes or a payment finishes.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const create = useMutation({
+    mutationFn: () => api.createPayment(Math.round(Number(dollars) * 100), 'usd', idempotencyKey),
+    onSuccess: (reply) => setClientSecret(reply.client_secret),
+  });
+
+  const publishableKey = config.data?.publishable_key;
+  if (config.isLoading) return <p>Loading...</p>;
+  if (!publishableKey) return <p role="status">Payments are not configured.</p>;
+
+  const freshAttempt = () => {
+    setClientSecret(null);
+    setIdempotencyKey(crypto.randomUUID());
+  };
+  const onPaid = () => {
+    freshAttempt();
+    void qc.invalidateQueries({ queryKey: ['payments'] });
+  };
+
+  return (
+    <div>
+      {clientSecret ? (
+        <Elements stripe={getStripe(publishableKey)} options={{ clientSecret }}>
+          <PayForm onPaid={onPaid} />
+          <button type="button" onClick={freshAttempt}>
+            Cancel
+          </button>
+        </Elements>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+        >
+          <label>
+            Amount (USD)
+            <input
+              type="number"
+              min="0.50"
+              step="0.01"
+              required
+              value={dollars}
+              onChange={(e) => {
+                setDollars(e.target.value);
+                setIdempotencyKey(crypto.randomUUID());
+              }}
+            />
+          </label>
+          <button type="submit" disabled={create.isPending}>
+            Continue to payment
+          </button>
+          {create.error instanceof ApiError && <p role="alert">{create.error.message}</p>}
+        </form>
+      )}
+      <h3>Your payments</h3>
+      {list.data?.payments.length === 0 && <p>No payments yet.</p>}
+      <ul>
+        {list.data?.payments.map((p) => (
+          <li key={p.id}>
+            {(p.amount_minor / 100).toFixed(2)} {p.currency.toUpperCase()} - {p.status}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Dashboard({
   email,
   verified,
@@ -385,6 +508,8 @@ function Dashboard({
       <button type="button" onClick={() => logout.mutate()}>
         Sign out
       </button>
+      <h2>Payments</h2>
+      <Payments />
       <h2>Two-factor authentication</h2>
       <MfaSettings enabled={mfaEnabled} />
       {permissions.includes('users.read') && (
