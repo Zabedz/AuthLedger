@@ -63,6 +63,28 @@ export interface EmailSuppressions {
   reason: string;
 }
 
+export interface LedgerAccounts {
+  code: string;
+  kind: string;
+  name: string;
+}
+
+export interface LedgerEntries {
+  created_at: Generated<Timestamp>;
+  currency: string;
+  id: Generated<string>;
+  kind: string;
+  reference: string;
+}
+
+export interface LedgerPostings {
+  account: string;
+  amount_minor: Int8;
+  created_at: Generated<Timestamp>;
+  entry_id: string;
+  id: Generated<string>;
+}
+
 export interface MfaChallenges {
   consumed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
@@ -194,6 +216,9 @@ export interface DB {
   auth_tokens: AuthTokens;
   email_dispatches: EmailDispatches;
   email_suppressions: EmailSuppressions;
+  ledger_accounts: LedgerAccounts;
+  ledger_entries: LedgerEntries;
+  ledger_postings: LedgerPostings;
   mfa_challenges: MfaChallenges;
   mfa_recovery_codes: MfaRecoveryCodes;
   oauth_flows: OauthFlows;

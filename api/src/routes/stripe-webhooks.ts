@@ -6,6 +6,7 @@ import type { Kysely } from 'kysely';
 import type { Config } from '../config.js';
 import type { DB } from '../db/types.js';
 import { applyPaymentEvent } from '../domain/payments.js';
+import { postCharge } from '../domain/ledger.js';
 import { mapStripeEvent } from '../domain/stripe-mapping.js';
 
 // constructEvent is HMAC over the webhook secret and never calls the API, so the
@@ -104,6 +105,21 @@ export const stripeWebhookRoutes: FastifyPluginAsyncTypebox<StripeWebhookDeps> =
               .set({ status: 'unmatched' })
               .where('id', '=', event.id)
               .execute();
+          } else if (outcome === 'applied' && internal.kind === 'succeeded') {
+            // The charge settled: post it to the ledger in the same transaction,
+            // so a payment and its journal entry commit together.
+            // applyPaymentEvent returned 'applied', so the row exists; fail loud
+            // and roll back rather than silently commit a charge with no entry.
+            const payment = await trx
+              .selectFrom('payments')
+              .select(['amount_minor', 'currency'])
+              .where('provider_intent_id', '=', internal.providerIntentId)
+              .executeTakeFirstOrThrow();
+            await postCharge(trx, {
+              providerIntentId: internal.providerIntentId,
+              amountMinor: Number(payment.amount_minor),
+              currency: payment.currency,
+            });
           }
         }
       });
