@@ -26,6 +26,8 @@ export interface Config {
   // The signing secret for the Stripe webhook endpoint (whsec_...); without it
   // the webhook route rejects every delivery.
   stripeWebhookSecret: string | undefined;
+  // The publishable key (pk_test_...); public, served to the SPA.
+  stripePublishableKey: string | undefined;
   // When set, the account with this email is granted the admin role at boot.
   adminEmail: string | undefined;
   // Off only for the browser e2e, where many journeys share one server and one
@@ -117,6 +119,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET || undefined;
+  // The publishable key is not secret; the SPA needs it to mount the Payment
+  // Element, and the API serves it through a public config endpoint.
+  const stripePublishableKey = env.STRIPE_PUBLISHABLE_KEY || undefined;
 
   // 32-byte AES key (base64) that encrypts TOTP secrets at rest. Required in
   // production; dev and test fall back to a fixed key.
@@ -155,6 +160,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sesSnsTopicArn,
     stripeSecretKey,
     stripeWebhookSecret,
+    stripePublishableKey,
     adminEmail,
     rateLimitEnabled,
   };

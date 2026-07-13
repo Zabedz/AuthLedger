@@ -78,8 +78,9 @@ export const stripeWebhookRoutes: FastifyPluginAsyncTypebox<StripeWebhookDeps> =
 
       // Claim the event id and process in one transaction: a replay conflicts and
       // is a no-op, and a processing failure rolls the claim back so the Stripe
-      // retry reprocesses. The inbox status carries the application outcome so a
-      // reprocessor can retry an event that arrived before its payment row.
+      // retry reprocesses. The inbox status records the application outcome;
+      // 'unmatched' (a handled event with no payment row, only reachable for an
+      // out-of-band intent) is left for M7 reconciliation against the provider.
       await db.transaction().execute(async (trx) => {
         const claim = await trx
           .insertInto('provider_events')

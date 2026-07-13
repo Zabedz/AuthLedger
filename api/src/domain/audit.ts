@@ -24,7 +24,9 @@ export type AuditEvent =
   | 'oauth_account_created'
   | 'role_granted'
   | 'role_revoked'
-  | 'admin_sessions_revoked';
+  | 'admin_sessions_revoked'
+  | 'payment_created'
+  | 'payment_refunded';
 
 export interface AuditEntry {
   event: AuditEvent;

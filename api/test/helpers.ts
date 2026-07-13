@@ -26,8 +26,11 @@ export const testConfig: Config = {
   encryptionKey: Buffer.alloc(32, 9),
   oauth: { google: undefined, github: undefined },
   sesSnsTopicArn: undefined,
-  stripeSecretKey: undefined,
+  // Fixture keys: the create and refund routes gate on a secret key being set,
+  // and those tests inject a stub Stripe client so no network call is made.
+  stripeSecretKey: 'sk_test_fixture',
   stripeWebhookSecret: 'whsec_test_secret',
+  stripePublishableKey: 'pk_test_fixture',
   adminEmail: undefined,
   rateLimitEnabled: true,
 };
@@ -69,7 +72,13 @@ export async function makeTestServer(
 
   const app = await buildServer(
     config,
-    { db, enqueue, health: overrides.health ?? healthyDeps, oauthClients: overrides.oauthClients },
+    {
+      db,
+      enqueue,
+      health: overrides.health ?? healthyDeps,
+      oauthClients: overrides.oauthClients,
+      stripe: overrides.stripe,
+    },
     { loggerStream },
   );
 
@@ -96,6 +105,7 @@ export async function truncateAll(db: Kysely<DB>): Promise<void> {
   await db.deleteFrom('processed_sns_messages').execute();
   await db.deleteFrom('email_suppressions').execute();
   await db.deleteFrom('provider_events').execute();
+  await db.deleteFrom('refunds').execute();
   await db.deleteFrom('payments').execute();
   await db.deleteFrom('user_roles').execute();
   await db.deleteFrom('sessions').execute();

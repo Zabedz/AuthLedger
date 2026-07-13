@@ -151,6 +151,40 @@ export type Payment = Static<typeof paymentSchema>;
 export const paymentListSchema = Type.Object({ payments: Type.Array(paymentSchema) });
 export type PaymentList = Static<typeof paymentListSchema>;
 
+// Amounts are integer minor units; the Stripe minimum is 50 (50 cents).
+export const createPaymentSchema = Type.Object({
+  amount_minor: Type.Integer({ minimum: 50, maximum: 99_999_999 }),
+  currency: Type.String({ minLength: 3, maxLength: 3 }),
+});
+export type CreatePaymentBody = Static<typeof createPaymentSchema>;
+
+// The client secret mounts the Payment Element; it is not stored server-side.
+export const paymentIntentReplySchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  client_secret: Type.String(),
+  status: paymentStatusSchema,
+  amount_minor: Type.Integer(),
+  currency: Type.String(),
+});
+export type PaymentIntentReply = Static<typeof paymentIntentReplySchema>;
+
+export const refundBodySchema = Type.Object({
+  amount_minor: Type.Optional(Type.Integer({ minimum: 1 })),
+});
+export type RefundBody = Static<typeof refundBodySchema>;
+
+export const refundReplySchema = Type.Object({
+  refunded_minor: Type.Integer(),
+  reason: Type.String(),
+});
+export type RefundReply = Static<typeof refundReplySchema>;
+
+// Public: the SPA reads the publishable key to mount the Payment Element.
+export const paymentConfigSchema = Type.Object({
+  publishable_key: Type.Union([Type.String(), Type.Null()]),
+});
+export type PaymentConfig = Static<typeof paymentConfigSchema>;
+
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   created_at: Type.String(),

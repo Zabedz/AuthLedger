@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import rateLimit from '@fastify/rate-limit';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import type { Kysely } from 'kysely';
@@ -43,6 +43,10 @@ export interface ServerOptions {
   loggerStream?: NodeJS.WritableStream;
 }
 
+// A sentinel, not a credential: the Stripe client falls back to it when no key
+// is set, which is enough for webhook signature verification (HMAC only).
+const STRIPE_NO_API_KEY = 'stripe-api-key-unused-for-webhook-verification';
+
 export async function buildServer(
   config: Config,
   deps: ServerDeps,
@@ -83,18 +87,16 @@ export async function buildServer(
 
   const routeDeps = { config, db: deps.db, enqueue: deps.enqueue };
   const oauthClients = deps.oauthClients ?? buildOAuthClients(config);
+  // One Stripe client, shared by the payment and webhook routes. constructEvent
+  // needs no live key, so a sentinel is fine when only verifying webhooks.
+  const stripe = deps.stripe ?? new Stripe(config.stripeSecretKey ?? STRIPE_NO_API_KEY);
   await app.register(healthRoutes, { prefix: '/api', deps: deps.health });
   await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(mfaRoutes, { prefix: '/api/auth/mfa', ...routeDeps });
   await app.register(adminRoutes, { prefix: '/api/admin', ...routeDeps });
-  await app.register(paymentRoutes, { prefix: '/api/payments', ...routeDeps });
-  await app.register(stripeWebhookRoutes, {
-    prefix: '/api/webhooks',
-    config,
-    db: deps.db,
-    stripe: deps.stripe,
-  });
+  await app.register(paymentRoutes, { prefix: '/api/payments', ...routeDeps, stripe });
+  await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', config, db: deps.db, stripe });
   await app.register(oauthRoutes, {
     prefix: '/api/auth/oauth',
     ...routeDeps,
