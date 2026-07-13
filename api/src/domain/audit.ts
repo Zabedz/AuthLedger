@@ -11,7 +11,9 @@ export type AuditEvent =
   | 'session_revoked'
   | 'email_verified'
   | 'password_reset'
-  | 'account_deleted';
+  | 'account_deleted'
+  | 'email_bounced'
+  | 'email_complained';
 
 export interface AuditEntry {
   event: AuditEvent;

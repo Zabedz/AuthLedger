@@ -54,10 +54,22 @@ export interface EmailDispatches {
   user_id: string | null;
 }
 
+export interface EmailSuppressions {
+  address: string;
+  created_at: Generated<Timestamp>;
+  detail: Generated<Json>;
+  reason: string;
+}
+
 export interface Pgmigrations {
   id: Generated<number>;
   name: string;
   run_on: Timestamp;
+}
+
+export interface ProcessedSnsMessages {
+  message_id: string;
+  received_at: Generated<Timestamp>;
 }
 
 export interface Sessions {
@@ -87,7 +99,9 @@ export interface DB {
   audit_events: AuditEvents;
   auth_tokens: AuthTokens;
   email_dispatches: EmailDispatches;
+  email_suppressions: EmailSuppressions;
   pgmigrations: Pgmigrations;
+  processed_sns_messages: ProcessedSnsMessages;
   sessions: Sessions;
   users: Users;
 }

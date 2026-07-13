@@ -19,6 +19,7 @@ export interface Config {
   databaseUrl: string;
   appOrigin: string;
   smtp: SmtpConfig;
+  sesSnsTopicArn: string | undefined;
   stripeSecretKey: string | undefined;
 }
 
@@ -85,5 +86,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
-  return { nodeEnv, port, logLevel, databaseUrl, appOrigin, smtp, stripeSecretKey };
+  // When set, the SES delivery-event webhook rejects SNS messages from any
+  // other topic. Unset in dev and CI, where the topic does not exist.
+  const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
+
+  return {
+    nodeEnv,
+    port,
+    logLevel,
+    databaseUrl,
+    appOrigin,
+    smtp,
+    sesSnsTopicArn,
+    stripeSecretKey,
+  };
 }

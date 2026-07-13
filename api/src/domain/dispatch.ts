@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import type { DB } from '../db/types.js';
 import { composeEmail, type EmailContext, type EmailKind } from './emails.js';
 import type { EmailMessage, Mailer } from './mailer.js';
+import { isSuppressed } from './suppression.js';
 
 export const DAILY_EMAIL_CAP = 20;
 
@@ -40,7 +41,8 @@ export function toDeliveryJob(request: EmailRequest): DeliveryJob {
   };
 }
 
-export type DeliveryOutcome = 'sent' | 'skipped_duplicate' | 'skipped_capped';
+export type DeliveryOutcome =
+  'sent' | 'skipped_duplicate' | 'skipped_capped' | 'skipped_suppressed';
 
 function startOfUtcDay(): Date {
   const day = new Date();
@@ -53,6 +55,11 @@ export async function deliverEmail(
   mailer: Mailer,
   job: DeliveryJob,
 ): Promise<DeliveryOutcome> {
+  // Never send to an address SES flagged as a bounce or complaint.
+  if (await isSuppressed(db, job.recipient)) {
+    return 'skipped_suppressed';
+  }
+
   const claim = await db
     .insertInto('email_dispatches')
     .values({
