@@ -27,8 +27,10 @@ logic.
 Monorepo layout (api, web, shared types), strict TypeScript, Fastify app with
 `/healthz` and `/readyz`, structured logging with request IDs, OpenAPI
 generation wired from the first route, Docker Compose (Postgres, Mailpit,
-Stripe CLI), SQL migration runner plus type generation, seed command, ci.yml
-with every required check from the research doc, `.env.example`.
+Stripe CLI), SQL migration runner plus type generation, ci.yml with every
+required check from the research doc, `.env.example`. The seed command arrives
+with the first real schema in M2; a stub against zero tables would be dead
+code.
 
 Acceptance:
 - Fresh clone to running system in one command plus one make target,
@@ -72,7 +74,9 @@ Acceptance:
 Registration, login with argon2id, opaque server-side sessions in Postgres,
 logout, active-session listing and revocation, CSRF and CORS policy from the
 research doc, per-route rate limits, account lockout, and the security audit
-log table. Minimal SPA pages for register, login, and session management.
+log table. Minimal SPA pages for register, login, and session management. The
+idempotent seed command lands here with the first schema: one user per role
+with fixed UUIDs.
 
 Acceptance:
 - Integration tests cover the happy paths and the abuse paths: wrong
