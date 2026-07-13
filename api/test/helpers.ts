@@ -1,5 +1,5 @@
 import type { FastifyInstance, InjectOptions } from 'fastify';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type pg from 'pg';
 import type { Config } from '../src/config.js';
 import { createDb, createPool } from '../src/db/client.js';
@@ -95,6 +95,9 @@ export async function makeTestServer(
 }
 
 export async function truncateAll(db: Kysely<DB>): Promise<void> {
+  // The ledger is append-only (UPDATE/DELETE are refused by triggers), so
+  // resetting it between tests needs TRUNCATE, which row triggers do not fire on.
+  await sql`TRUNCATE ledger_postings, ledger_entries`.execute(db);
   await db.deleteFrom('audit_events').execute();
   await db.deleteFrom('email_dispatches').execute();
   await db.deleteFrom('auth_tokens').execute();

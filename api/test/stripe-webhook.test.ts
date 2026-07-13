@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeTestServer, truncateAll, type TestContext } from './helpers.js';
+import { accountBalance } from '../src/domain/ledger.js';
 
 const WEBHOOK_SECRET = 'whsec_test_secret';
 const stripe = new Stripe('sk_test_dummy');
@@ -111,6 +112,9 @@ describe('stripe webhook processing', () => {
       .where('id', '=', 'evt_ok')
       .executeTakeFirstOrThrow();
     expect(inbox.status).toBe('processed');
+    // The settled charge posts a balanced ledger entry (gross 1000).
+    expect(await accountBalance(ctx.db, 'stripe_receivable')).toBe(1000);
+    expect(await accountBalance(ctx.db, 'revenue')).toBe(-1000);
   });
 
   it('treats a replayed event id as a no-op', async () => {
