@@ -1,31 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import type { Config } from '../src/config.js';
-import { buildServer } from '../src/server.js';
 import type { HealthDeps } from '../src/routes/health.js';
+import { healthyDeps, makeTestServer, type TestContext } from './helpers.js';
 
-const config: Config = {
-  nodeEnv: 'test',
-  port: 0,
-  logLevel: 'fatal',
-  databaseUrl: 'postgres://unused',
-  stripeSecretKey: undefined,
-};
+let ctx: TestContext;
 
-const healthyDeps: HealthDeps = {
-  checkDatabase: async () => {},
-  pendingMigrations: async () => [],
-};
-
-let app: FastifyInstance;
-
-async function start(deps: HealthDeps): Promise<FastifyInstance> {
-  app = await buildServer(config, { health: deps });
-  return app;
+async function start(deps: HealthDeps): Promise<TestContext> {
+  ctx = await makeTestServer({ health: deps });
+  return ctx;
 }
 
 afterEach(async () => {
-  await app?.close();
+  await ctx?.close();
 });
 
 describe('GET /api/healthz', () => {
@@ -38,7 +23,7 @@ describe('GET /api/healthz', () => {
         throw new Error('database is down');
       },
     });
-    const res = await app.inject({ method: 'GET', url: '/api/healthz' });
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/healthz' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: 'ok' });
   });
@@ -47,7 +32,7 @@ describe('GET /api/healthz', () => {
 describe('GET /api/readyz', () => {
   it('returns ready when all checks pass', async () => {
     await start(healthyDeps);
-    const res = await app.inject({ method: 'GET', url: '/api/readyz' });
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/readyz' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       status: 'ready',
@@ -65,7 +50,7 @@ describe('GET /api/readyz', () => {
         throw new Error('connection refused');
       },
     });
-    const res = await app.inject({ method: 'GET', url: '/api/readyz' });
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/readyz' });
     expect(res.statusCode).toBe(503);
     expect(res.json().status).toBe('unavailable');
     expect(res.json().checks).toContainEqual({
@@ -80,7 +65,7 @@ describe('GET /api/readyz', () => {
       ...healthyDeps,
       pendingMigrations: async () => ['0001_users'],
     });
-    const res = await app.inject({ method: 'GET', url: '/api/readyz' });
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/readyz' });
     expect(res.statusCode).toBe(503);
     expect(res.json().checks).toContainEqual({
       name: 'migrations',
@@ -93,7 +78,7 @@ describe('GET /api/readyz', () => {
 describe('request id', () => {
   it('echoes an inbound x-request-id', async () => {
     await start(healthyDeps);
-    const res = await app.inject({
+    const res = await ctx.app.inject({
       method: 'GET',
       url: '/api/healthz',
       headers: { 'x-request-id': 'req-from-client' },
@@ -101,9 +86,13 @@ describe('request id', () => {
     expect(res.headers['x-request-id']).toBe('req-from-client');
   });
 
-  it('generates a request id when none is sent', async () => {
+  it('generates a request id when the inbound one is malformed', async () => {
     await start(healthyDeps);
-    const res = await app.inject({ method: 'GET', url: '/api/healthz' });
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/healthz',
+      headers: { 'x-request-id': 'has spaces and !!' },
+    });
     expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

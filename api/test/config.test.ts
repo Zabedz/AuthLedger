@@ -7,6 +7,20 @@ const base = {
   DATABASE_URL: 'postgres://u:p@localhost:5432/d',
 };
 
+describe('appOrigin', () => {
+  it('defaults to the vite dev origin outside production', () => {
+    expect(loadConfig(base).appOrigin).toBe('http://localhost:5173');
+  });
+
+  it('requires APP_ORIGIN in production', () => {
+    expect(() => loadConfig({ ...base, NODE_ENV: 'production' })).toThrow(/APP_ORIGIN/);
+  });
+
+  it('rejects an APP_ORIGIN with a path', () => {
+    expect(() => loadConfig({ ...base, APP_ORIGIN: 'http://x/app' })).toThrow(/APP_ORIGIN/);
+  });
+});
+
 describe('loadConfig', () => {
   it('parses a valid environment', () => {
     const config = loadConfig(base);
@@ -41,6 +55,7 @@ describe('loadConfig', () => {
     const config = loadConfig({
       ...base,
       NODE_ENV: 'production',
+      APP_ORIGIN: 'https://app.example',
       STRIPE_SECRET_KEY: 'sk_live_abc',
     });
     expect(config.stripeSecretKey).toBe('sk_live_abc');
