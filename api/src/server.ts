@@ -69,7 +69,9 @@ export async function buildServer(
   });
 
   registerOriginCheck(app, config);
-  await app.register(rateLimit, { global: false });
+  if (config.rateLimitEnabled) {
+    await app.register(rateLimit, { global: false });
+  }
   await registerSessionAuth(app, config, deps.db);
   registerAuthzGuard(app);
   await registerOpenapi(app, config);

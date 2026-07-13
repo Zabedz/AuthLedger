@@ -25,6 +25,9 @@ export interface Config {
   stripeSecretKey: string | undefined;
   // When set, the account with this email is granted the admin role at boot.
   adminEmail: string | undefined;
+  // Off only for the browser e2e, where many journeys share one server and one
+  // client IP; the per-route limits are still asserted by the api tests.
+  rateLimitEnabled: boolean;
 }
 
 export interface OAuthCredentials {
@@ -133,6 +136,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
 
   const adminEmail = env.ADMIN_EMAIL || undefined;
+  const rateLimitEnabled = env.DISABLE_RATE_LIMIT !== 'true';
 
   return {
     nodeEnv,
@@ -146,5 +150,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sesSnsTopicArn,
     stripeSecretKey,
     adminEmail,
+    rateLimitEnabled,
   };
 }

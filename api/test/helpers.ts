@@ -28,6 +28,7 @@ export const testConfig: Config = {
   sesSnsTopicArn: undefined,
   stripeSecretKey: undefined,
   adminEmail: undefined,
+  rateLimitEnabled: true,
 };
 
 export const healthyDeps: HealthDeps = {

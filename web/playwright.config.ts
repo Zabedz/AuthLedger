@@ -33,6 +33,9 @@ export default defineConfig({
         APP_ORIGIN: `http://localhost:${WEB_PORT}`,
         SMTP_HOST: 'localhost',
         SMTP_PORT: String(process.env.MAILPIT_SMTP_PORT ?? 1025),
+        // Many journeys share one server and one client IP here; the per-route
+        // limits are covered by the api tests instead.
+        DISABLE_RATE_LIMIT: 'true',
       },
     },
     {
