@@ -157,3 +157,39 @@ fully authenticated, which is what makes requireAuth safe. M4's
 password-ok-awaiting-TOTP state must therefore be a separate short-lived
 challenge token (its own table, like M3's reset tokens), never a pending flag
 on a session row.
+
+## ADR-011: Email transport and the job queue (2026-07-13)
+
+Context: M3 needs transactional email (verification, reset, security notices)
+and async processing with retries and a schedule.
+Decision: one nodemailer SMTP transport for both environments (Mailpit in dev
+and CI, the SES SMTP endpoint in production), so sending pulls in no AWS SDK
+and the driver is identical everywhere. pg-boss is the queue: Postgres-backed,
+so no Redis, with email sends and a daily purge running as jobs. Delivery is
+idempotent through an email_dispatches row keyed by a per-job dedupe key
+(claim, send, mark sent), and a per-account daily cap counts those rows. Auth
+tokens (verification and reset) are single-use: a random token, only its
+SHA-256 stored, consumed by an UPDATE ... WHERE consumed_at IS NULL so reuse
+matches zero rows.
+Consequences: a crash between SMTP success and the sent_at write can, rarely,
+re-send one email; accepted as standard at-least-once delivery. The SES
+delivery-event (bounce and complaint) webhook is deferred to its own step
+(M3b) because SNS signature verification is a separate, testable concern.
+
+## ADR-012: Non-enumerating identity responses (2026-07-13)
+
+Context: registration, verification resend, and reset requests must not reveal
+whether an address has an account.
+Decision: all three return the same 202 accepted regardless, and only a real
+account triggers an email. Registration therefore no longer signs the user in
+or returns the user; the browser flow is register, verify by email link, then
+sign in. Login stays available to unverified accounts (the SPA shows a verify
+banner); gating specific actions on verification arrives with the money
+endpoints.
+Consequences: the M2 auto-login-on-register flow is gone, which changed the
+SPA and its e2e. Registration timing stays dominated by the argon2 hash, which
+runs on the exists path too, so registration does not leak by timing. The
+resend and reset-request endpoints do a token-issue plus enqueue only on a
+match and run no argon2, so a registered address responds measurably slower
+there; that residual channel is accepted because the deployed environment
+holds only developer-owned addresses (docs/DATA.md).

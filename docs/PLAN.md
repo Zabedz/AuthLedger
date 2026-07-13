@@ -96,27 +96,34 @@ Acceptance:
 
 ## M3: Email flows and background jobs
 
-The mailer interface (SES in the test environment, Mailpit in dev and CI),
-the pg-boss job queue, email verification, password reset with single-use
-hashed tokens, security notification emails, bounce and complaint
-notifications from the mail provider, account deletion, and housekeeping jobs
-(expired session and token purge).
+Split into M3a (the identity email flows, all local via Mailpit) and M3b (the
+SES delivery-event webhook). M3a is done; M3b is the remaining slice.
 
-Acceptance:
-- Verification and reset flows tested end to end through Mailpit's API,
-  including token expiry and reuse rejection.
-- Password reset invalidates all active sessions; the event is audited and
+The mailer interface (one SMTP transport: SES in the test environment, Mailpit
+in dev and CI), the pg-boss job queue, email verification, password reset with
+single-use hashed tokens, security notification emails, account deletion, and
+housekeeping jobs (expired session and token purge).
+
+Acceptance (M3a, done):
+- [x] Verification and reset flows tested end to end through Mailpit's API,
+  including token expiry and reuse rejection (browser e2e plus API tests).
+- [x] Password reset invalidates all active sessions; the event is audited and
   the user notified.
-- Registration, verification, and reset responses do not reveal whether an
-  account exists (uniform status, wording, and timing envelope).
-- Email sends retry on failure and are capped per account per day.
+- [x] Registration, verification, and reset responses do not reveal whether an
+  account exists (uniform 202; registration timing dominated by argon2 on both
+  paths; the small residual timing channel on resend/reset-request is accepted,
+  ADR-012).
+- [x] Email sends retry on failure (pg-boss) and are capped per account per day.
+- [x] Account deletion removes personal data, revokes all sessions, and is
+  audited; the data-retention note is published with the docs (the test
+  environment only ever holds developer-owned addresses).
+- [x] A killed job mid-run is retried without duplicate effects (dedupe-key
+  claim-send-mark, proven by test).
+
+Acceptance (M3b, remaining):
 - Bounce and complaint notifications (SNS messages, for SES) are
   signature-verified, replay-protected, and audited, exercised against the
   SES mailbox simulator; the same discipline as the payment webhooks.
-- Account deletion removes personal data, revokes all sessions, and is
-  audited; the data-retention note is published with the docs (the test
-  environment only ever holds developer-owned addresses).
-- A killed job mid-run is retried without duplicate effects.
 
 ## M4: MFA and social login
 
