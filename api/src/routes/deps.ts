@@ -5,8 +5,9 @@ import type { DB } from '../db/types.js';
 import { recordAudit } from '../domain/audit.js';
 import { isNewDevice } from '../domain/devices.js';
 import type { EmailEnqueuer } from '../domain/dispatch.js';
+import { issueMfaChallenge } from '../domain/mfa.js';
 import { createSession, revokeSession, type Session, type User } from '../domain/sessions.js';
-import { setSessionCookie } from '../plugins/session-auth.js';
+import { setMfaChallengeCookie, setSessionCookie } from '../plugins/session-auth.js';
 
 export interface RouteDeps {
   config: Config;
@@ -31,6 +32,20 @@ export function requestContextOf(req: { ip: string; headers: Record<string, unkn
     ip: req.ip,
     userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null,
   };
+}
+
+// The half-authenticated MFA step, shared by the password path and the OAuth
+// callback: mint a single-use challenge, audit it, and stash it in the cookie.
+// The caller decides how to answer (JSON signal or redirect to /mfa).
+export async function beginMfaChallenge(
+  deps: RouteDeps,
+  reply: FastifyReply,
+  userId: string,
+  ctx: { ip: string; userAgent: string | null },
+): Promise<void> {
+  const challenge = await issueMfaChallenge(deps.db, userId);
+  await recordAudit(deps.db, { event: 'mfa_challenge_issued', userId, ...ctx });
+  setMfaChallengeCookie(reply, deps.config, challenge);
 }
 
 // The tail of a successful login, shared by the password path and the MFA

@@ -20,8 +20,26 @@ export interface Config {
   appOrigin: string;
   smtp: SmtpConfig;
   encryptionKey: Buffer;
+  oauth: OAuthConfig;
   sesSnsTopicArn: string | undefined;
   stripeSecretKey: string | undefined;
+}
+
+export interface OAuthCredentials {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface OAuthConfig {
+  google: OAuthCredentials | undefined;
+  github: OAuthCredentials | undefined;
+}
+
+function oauthCreds(
+  id: string | undefined,
+  secret: string | undefined,
+): OAuthCredentials | undefined {
+  return id && secret ? { clientId: id, clientSecret: secret } : undefined;
 }
 
 // A fixed key for dev and test only. Production supplies its own via env.
@@ -102,6 +120,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('ENCRYPTION_KEY is required in production');
   }
 
+  // Each social provider is enabled only when both its id and secret are set.
+  const oauth: OAuthConfig = {
+    google: oauthCreds(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
+    github: oauthCreds(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET),
+  };
+
   // When set, the SES delivery-event webhook rejects SNS messages from any
   // other topic. Unset in dev and CI, where the topic does not exist.
   const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
@@ -114,6 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     appOrigin,
     smtp,
     encryptionKey,
+    oauth,
     sesSnsTopicArn,
     stripeSecretKey,
   };

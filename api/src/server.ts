@@ -6,6 +6,12 @@ import type { Kysely } from 'kysely';
 import type { Config } from './config.js';
 import type { DB } from './db/types.js';
 import type { EmailEnqueuer } from './domain/dispatch.js';
+import {
+  githubClient,
+  googleClient,
+  type OAuthClient,
+  type OAuthProvider,
+} from './domain/oauth.js';
 import { loggerOptions, requestContext } from './logging.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
@@ -14,12 +20,15 @@ import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes, type HealthDeps } from './routes/health.js';
 import { mfaRoutes } from './routes/mfa.js';
+import { oauthRoutes } from './routes/oauth.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
 export interface ServerDeps {
   health: HealthDeps;
   db: Kysely<DB>;
   enqueue: EmailEnqueuer;
+  // Tests inject stub OAuth clients; production builds them from config.
+  oauthClients?: Partial<Record<OAuthProvider, OAuthClient>>;
 }
 
 export interface ServerOptions {
@@ -63,10 +72,16 @@ export async function buildServer(
   await registerOpenapi(app, config);
 
   const routeDeps = { config, db: deps.db, enqueue: deps.enqueue };
+  const oauthClients = deps.oauthClients ?? buildOAuthClients(config);
   await app.register(healthRoutes, { prefix: '/api', deps: deps.health });
   await app.register(authRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(accountRoutes, { prefix: '/api/auth', ...routeDeps });
   await app.register(mfaRoutes, { prefix: '/api/auth/mfa', ...routeDeps });
+  await app.register(oauthRoutes, {
+    prefix: '/api/auth/oauth',
+    ...routeDeps,
+    clients: oauthClients,
+  });
   // The SES webhook is only safe once a topic is pinned (a valid SNS signature
   // alone does not bind a message to our topic), so in production the route
   // does not exist until SES_SNS_TOPIC_ARN is set. Dev and CI register it
@@ -76,4 +91,15 @@ export async function buildServer(
   }
 
   return app;
+}
+
+function buildOAuthClients(config: Config): Partial<Record<OAuthProvider, OAuthClient>> {
+  const clients: Partial<Record<OAuthProvider, OAuthClient>> = {};
+  if (config.oauth.google) {
+    clients.google = googleClient(config.oauth.google);
+  }
+  if (config.oauth.github) {
+    clients.github = githubClient(config.oauth.github);
+  }
+  return clients;
 }

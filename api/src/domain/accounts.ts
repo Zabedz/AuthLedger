@@ -56,6 +56,12 @@ export async function authenticate(
     return { status: 'locked', userId: user.id };
   }
 
+  // An OAuth-only account has no password; it cannot be entered this way.
+  if (user.password_hash === null) {
+    await verifyPassword(timingDummyHash, password);
+    return { status: 'invalid', userId: user.id };
+  }
+
   const valid = await verifyPassword(user.password_hash, password);
 
   if (valid) {

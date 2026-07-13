@@ -80,6 +80,15 @@ export interface MfaRecoveryCodes {
   user_id: string;
 }
 
+export interface OauthFlows {
+  code_verifier: string;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  nonce: string | null;
+  provider: string;
+  state: string;
+}
+
 export interface Pgmigrations {
   id: Generated<number>;
   name: string;
@@ -89,6 +98,14 @@ export interface Pgmigrations {
 export interface ProcessedSnsMessages {
   message_id: string;
   received_at: Generated<Timestamp>;
+}
+
+export interface ProviderIdentities {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  provider: string;
+  provider_user_id: string;
+  user_id: string;
 }
 
 export interface Sessions {
@@ -110,7 +127,7 @@ export interface Users {
   failed_login_count: Generated<number>;
   id: Generated<string>;
   locked_until: Timestamp | null;
-  password_hash: string;
+  password_hash: string | null;
   totp_enabled_at: Timestamp | null;
   totp_last_step: Int8 | null;
   totp_secret: Buffer | null;
@@ -124,8 +141,10 @@ export interface DB {
   email_suppressions: EmailSuppressions;
   mfa_challenges: MfaChallenges;
   mfa_recovery_codes: MfaRecoveryCodes;
+  oauth_flows: OauthFlows;
   pgmigrations: Pgmigrations;
   processed_sns_messages: ProcessedSnsMessages;
+  provider_identities: ProviderIdentities;
   sessions: Sessions;
   users: Users;
 }

@@ -5,6 +5,7 @@ export interface PurgeCounts {
   sessions: number;
   tokens: number;
   mfaChallenges: number;
+  oauthFlows: number;
   snsMessages: number;
 }
 
@@ -29,6 +30,11 @@ export async function purgeExpired(db: Kysely<DB>, now: Date = new Date()): Prom
     .where((eb) => eb.or([eb('expires_at', '<', now), eb('consumed_at', 'is not', null)]))
     .executeTakeFirst();
 
+  const oauthFlows = await db
+    .deleteFrom('oauth_flows')
+    .where('expires_at', '<', now)
+    .executeTakeFirst();
+
   const snsCutoff = new Date(now.getTime() - SNS_REPLAY_RETENTION_DAYS * 24 * 3600 * 1000);
   const snsMessages = await db
     .deleteFrom('processed_sns_messages')
@@ -39,6 +45,7 @@ export async function purgeExpired(db: Kysely<DB>, now: Date = new Date()): Prom
     sessions: Number(sessions.numDeletedRows),
     tokens: Number(tokens.numDeletedRows),
     mfaChallenges: Number(mfaChallenges.numDeletedRows),
+    oauthFlows: Number(oauthFlows.numDeletedRows),
     snsMessages: Number(snsMessages.numDeletedRows),
   };
 }

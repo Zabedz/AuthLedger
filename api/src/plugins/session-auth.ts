@@ -9,8 +9,13 @@ import {
   type Session,
   type User,
 } from '../domain/sessions.js';
+import { MFA_CHALLENGE_TTL_MINUTES } from '../domain/mfa.js';
 
 export const SESSION_COOKIE = 'al_session';
+export const MFA_CHALLENGE_COOKIE = 'al_mfa';
+// Scoped to the one endpoint that reads it, so the challenge cookie is not sent
+// on any other request.
+const MFA_COOKIE_PATH = '/api/auth/login/mfa';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -34,6 +39,27 @@ export function clearSessionCookie(reply: FastifyReply, config: Config): void {
     sameSite: 'lax',
     secure: config.nodeEnv === 'production',
     path: '/',
+  });
+}
+
+// The MFA challenge token rides in an HttpOnly cookie between the password (or
+// OAuth) step and the second-factor step, so it never reaches JavaScript.
+export function setMfaChallengeCookie(reply: FastifyReply, config: Config, token: string): void {
+  reply.setCookie(MFA_CHALLENGE_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.nodeEnv === 'production',
+    path: MFA_COOKIE_PATH,
+    maxAge: MFA_CHALLENGE_TTL_MINUTES * 60,
+  });
+}
+
+export function clearMfaChallengeCookie(reply: FastifyReply, config: Config): void {
+  reply.clearCookie(MFA_CHALLENGE_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.nodeEnv === 'production',
+    path: MFA_COOKIE_PATH,
   });
 }
 

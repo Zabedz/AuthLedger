@@ -60,10 +60,11 @@ export const resetPasswordSchema = Type.Object({
 export type ResetPasswordBody = Static<typeof resetPasswordSchema>;
 
 // Login returns either a session (with the user) or, when MFA is enabled, a
-// short-lived challenge the client exchanges for a session with a second factor.
+// signal to collect a second factor. The challenge itself rides in an HttpOnly
+// cookie so it is never exposed to the SPA's JavaScript.
 export const loginReplySchema = Type.Union([
   userEnvelopeSchema,
-  Type.Object({ mfa_required: Type.Literal(true), challenge: Type.String() }),
+  Type.Object({ mfa_required: Type.Literal(true) }),
 ]);
 export type LoginReply = Static<typeof loginReplySchema>;
 
@@ -87,11 +88,10 @@ export type MfaCodeBody = Static<typeof mfaCodeSchema>;
 export const recoveryCodesSchema = Type.Object({ recovery_codes: Type.Array(Type.String()) });
 export type RecoveryCodesReply = Static<typeof recoveryCodesSchema>;
 
-export const mfaVerifySchema = Type.Object({
-  challenge: Type.String({ minLength: 1, maxLength: 512 }),
-  code: Type.String({ minLength: 6, maxLength: 20 }),
-});
-export type MfaVerifyBody = Static<typeof mfaVerifySchema>;
+// The social-login providers the server has credentials for, so the SPA renders
+// a button only where a real flow exists.
+export const oauthProvidersSchema = Type.Object({ providers: Type.Array(Type.String()) });
+export type OAuthProvidersReply = Static<typeof oauthProvidersSchema>;
 
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),

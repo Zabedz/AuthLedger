@@ -5,22 +5,28 @@ import {
   credentialsSchema,
   errorReplySchema,
   loginReplySchema,
-  mfaVerifySchema,
+  mfaCodeSchema,
   sessionListSchema,
   userEnvelopeSchema,
 } from '@authledger/shared';
 import { authenticate, registerUser } from '../domain/accounts.js';
 import { recordAudit } from '../domain/audit.js';
 import { issueToken, VERIFY_EMAIL_TTL_HOURS } from '../domain/tokens.js';
-import {
-  consumeMfaChallenge,
-  consumeRecoveryCode,
-  issueMfaChallenge,
-  verifyTotpForUser,
-} from '../domain/mfa.js';
+import { consumeMfaChallenge, consumeRecoveryCode, verifyTotpForUser } from '../domain/mfa.js';
 import { listLiveSessions, revokeSession } from '../domain/sessions.js';
-import { clearSessionCookie, requireAuth } from '../plugins/session-auth.js';
-import { completeLogin, requestContextOf, userReply, type RouteDeps } from './deps.js';
+import {
+  clearMfaChallengeCookie,
+  clearSessionCookie,
+  MFA_CHALLENGE_COOKIE,
+  requireAuth,
+} from '../plugins/session-auth.js';
+import {
+  beginMfaChallenge,
+  completeLogin,
+  requestContextOf,
+  userReply,
+  type RouteDeps,
+} from './deps.js';
 
 export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app,
@@ -95,13 +101,12 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
         return reply.code(401).send({ error: 'invalid credentials' });
       }
 
-      // Password verified. If MFA is on, stop here and hand back a challenge
+      // Password verified. If MFA is on, stop here and set a challenge cookie
       // instead of a session (ADR-010: the password-ok state is never a
       // session row).
       if (result.user.totp_enabled_at !== null) {
-        const challenge = await issueMfaChallenge(db, result.user.id);
-        await recordAudit(db, { event: 'mfa_challenge_issued', userId: result.user.id, ...ctx });
-        return reply.code(200).send({ mfa_required: true as const, challenge });
+        await beginMfaChallenge({ config, db, enqueue }, reply, result.user.id, ctx);
+        return reply.code(200).send({ mfa_required: true as const });
       }
 
       const body = await completeLogin(
@@ -120,16 +125,18 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
-        body: mfaVerifySchema,
+        body: mfaCodeSchema,
         response: { 200: userEnvelopeSchema, 401: errorReplySchema },
       },
     },
     async (req, reply) => {
       const ctx = requestContextOf(req);
-      const challenge = await consumeMfaChallenge(db, req.body.challenge);
+      const challengeToken = req.cookies[MFA_CHALLENGE_COOKIE];
+      const challenge = challengeToken ? await consumeMfaChallenge(db, challengeToken) : null;
       if (!challenge) {
         return reply.code(401).send({ error: 'invalid or expired challenge' });
       }
+      clearMfaChallengeCookie(reply, config);
 
       // A 6-digit code is a TOTP; anything else is treated as a recovery code.
       const code = req.body.code;

@@ -19,7 +19,9 @@ export type AuditEvent =
   | 'mfa_challenge_issued'
   | 'mfa_succeeded'
   | 'mfa_failed'
-  | 'recovery_code_used';
+  | 'recovery_code_used'
+  | 'oauth_login'
+  | 'oauth_account_created';
 
 export interface AuditEntry {
   event: AuditEvent;
