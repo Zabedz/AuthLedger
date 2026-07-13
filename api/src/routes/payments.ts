@@ -90,7 +90,9 @@ export const paymentRoutes: FastifyPluginAsyncTypebox<PaymentDeps> = async (app,
           {
             amount: req.body.amount_minor,
             currency: req.body.currency,
-            automatic_payment_methods: { enabled: true },
+            // Card only: this app takes card payments, and it renders a
+            // deterministic card form in the Payment Element.
+            payment_method_types: ['card'],
           },
           { idempotencyKey },
         );
