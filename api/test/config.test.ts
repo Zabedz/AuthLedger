@@ -56,8 +56,21 @@ describe('loadConfig', () => {
       ...base,
       NODE_ENV: 'production',
       APP_ORIGIN: 'https://app.example',
+      ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
       STRIPE_SECRET_KEY: 'sk_live_abc',
     });
     expect(config.stripeSecretKey).toBe('sk_live_abc');
+  });
+
+  it('requires ENCRYPTION_KEY in production', () => {
+    expect(() =>
+      loadConfig({ ...base, NODE_ENV: 'production', APP_ORIGIN: 'https://app.example' }),
+    ).toThrow(/ENCRYPTION_KEY/);
+  });
+
+  it('rejects an ENCRYPTION_KEY that is not 32 bytes', () => {
+    expect(() =>
+      loadConfig({ ...base, ENCRYPTION_KEY: Buffer.alloc(16).toString('base64') }),
+    ).toThrow(/32 bytes/);
   });
 });

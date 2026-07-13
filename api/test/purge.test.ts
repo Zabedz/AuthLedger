@@ -47,6 +47,27 @@ describe('purgeExpired', () => {
     expect(remaining).toHaveLength(1);
   });
 
+  it('deletes consumed and expired MFA challenges, keeps pending ones', async () => {
+    const userId = await makeUser();
+    await db
+      .insertInto('mfa_challenges')
+      .values([
+        {
+          user_id: userId,
+          token_hash: Buffer.from('consumed'),
+          expires_at: hoursAhead(1),
+          consumed_at: new Date(),
+        },
+        { user_id: userId, token_hash: Buffer.from('expired'), expires_at: hoursAgo(1) },
+        { user_id: userId, token_hash: Buffer.from('pending'), expires_at: hoursAhead(1) },
+      ])
+      .execute();
+
+    const counts = await purgeExpired(db);
+    expect(counts.mfaChallenges).toBe(2);
+    expect(await db.selectFrom('mfa_challenges').select('token_hash').execute()).toHaveLength(1);
+  });
+
   it('deletes consumed and expired tokens, keeps pending ones', async () => {
     const userId = await makeUser();
     await db
