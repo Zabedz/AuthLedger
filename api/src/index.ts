@@ -1,16 +1,18 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
-import { createPool } from './db/client.js';
+import { createDb, createPool } from './db/client.js';
 import { pendingMigrations } from './db/migrations.js';
 import { buildServer } from './server.js';
 
 const config = loadConfig();
 const pool = createPool(config.databaseUrl);
+const db = createDb(pool);
 
 const migrationsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
 
 const app = await buildServer(config, {
+  db,
   health: {
     checkDatabase: async () => {
       await pool.query('SELECT 1');
