@@ -271,3 +271,39 @@ be reused. Enable and disable are audited and notified; disable also accepts a
 recovery code so a lost authenticator is not a lockout. M4b's OAuth converges
 on completeLogin and adds a provider_identities table plus a nullable
 password_hash.
+
+## ADR-016: OAuth social login and the MFA challenge cookie (2026-07-13)
+
+Context: M4b adds Google (OIDC) and GitHub (OAuth2) login, which must not
+weaken the password/MFA guarantees or hand the SPA any bearer secret. It also
+revisits how the MFA challenge from ADR-015 reaches the second-factor step.
+Decision: providers hide behind one OAuthClient seam (begin/complete). Google
+uses openid-client's discovery with PKCE and id_token nonce validation, with
+the discovered Configuration memoized per client (a failed discovery is not
+cached). GitHub is plain OAuth2 (no id_token): after the code exchange the
+client reads GitHub's /user and /user/emails REST endpoints and takes identity
+from the verified primary address, never the public profile email (which is
+null when the user keeps it private). The authorization flow is bound to the
+browser: /start stores state, PKCE verifier, and nonce in an expiring
+single-use oauth_flows row and sets an al_oauth_state cookie scoped to
+/api/auth/oauth; /callback rejects unless the URL state matches that cookie,
+then consumes the flow. Account linking is conservative: an existing
+provider_identity logs in; otherwise a verified provider email links to or
+creates the account owning that address; an unverified or already-claimed
+email never touches an existing account and instead gets a synthetic
+${provider}-${id}@users.noreply.authledger address. The OAuth callback reuses
+the MFA gate and completeLogin (both through a shared beginMfaChallenge helper),
+so a linked account with TOTP on gets a challenge and a redirect to /mfa, never
+a session. The MFA challenge token now rides in an HttpOnly al_mfa cookie scoped
+to /api/auth/login/mfa (its only reader) instead of the login response body, so
+the password step and the OAuth step feed /login/mfa the same way and the token
+is never exposed to SPA JavaScript. A public /oauth/providers endpoint lists
+only wired-up providers so the sign-in screen shows no dead buttons.
+Consequences: password_hash is nullable (OAuth-only accounts have none), and
+provider_identities carries a unique (provider, provider_user_id). The
+challenge-cookie move supersedes ADR-015's body-returned challenge. Client
+secrets stay server-side; the SPA only ever sees provider names and follows
+full-page redirects. Deferred: a per-provider allowlist of redirect origins if
+more clients are added, and graceful retry (rather than a one-shot error) when
+two genuinely simultaneous first-logins collide on the identity unique
+constraint (safe today, since a retry links to the now-existing identity).
