@@ -4,16 +4,23 @@ import {
   acceptedReplySchema,
   credentialsSchema,
   errorReplySchema,
+  loginReplySchema,
+  mfaVerifySchema,
   sessionListSchema,
   userEnvelopeSchema,
 } from '@authledger/shared';
 import { authenticate, registerUser } from '../domain/accounts.js';
 import { recordAudit } from '../domain/audit.js';
 import { issueToken, VERIFY_EMAIL_TTL_HOURS } from '../domain/tokens.js';
-import { isNewDevice } from '../domain/devices.js';
-import { createSession, listLiveSessions, revokeSession } from '../domain/sessions.js';
-import { clearSessionCookie, requireAuth, setSessionCookie } from '../plugins/session-auth.js';
-import { requestContextOf, userReply, type RouteDeps } from './deps.js';
+import {
+  consumeMfaChallenge,
+  consumeRecoveryCode,
+  issueMfaChallenge,
+  verifyTotpForUser,
+} from '../domain/mfa.js';
+import { listLiveSessions, revokeSession } from '../domain/sessions.js';
+import { clearSessionCookie, requireAuth } from '../plugins/session-auth.js';
+import { completeLogin, requestContextOf, userReply, type RouteDeps } from './deps.js';
 
 export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
   app,
@@ -55,7 +62,7 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: credentialsSchema,
-        response: { 200: userEnvelopeSchema, 401: errorReplySchema },
+        response: { 200: loginReplySchema, 401: errorReplySchema },
       },
     },
     async (req, reply) => {
@@ -88,32 +95,74 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
         return reply.code(401).send({ error: 'invalid credentials' });
       }
 
-      const newDevice = await isNewDevice(db, result.user.id, ctx.userAgent);
-
-      // Rotation: a session presented at login never survives it.
-      if (req.auth) {
-        await revokeSession(db, req.auth.session.id, req.auth.user.id);
+      // Password verified. If MFA is on, stop here and hand back a challenge
+      // instead of a session (ADR-010: the password-ok state is never a
+      // session row).
+      if (result.user.totp_enabled_at !== null) {
+        const challenge = await issueMfaChallenge(db, result.user.id);
+        await recordAudit(db, { event: 'mfa_challenge_issued', userId: result.user.id, ...ctx });
+        return reply.code(200).send({ mfa_required: true as const, challenge });
       }
 
-      const { token, session } = await createSession(db, result.user.id, ctx);
+      const body = await completeLogin(
+        { config, db, enqueue },
+        reply,
+        result.user,
+        ctx,
+        req.auth?.session ?? null,
+      );
+      return reply.code(200).send(body);
+    },
+  );
+
+  app.post(
+    '/login/mfa',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      schema: {
+        body: mfaVerifySchema,
+        response: { 200: userEnvelopeSchema, 401: errorReplySchema },
+      },
+    },
+    async (req, reply) => {
+      const ctx = requestContextOf(req);
+      const challenge = await consumeMfaChallenge(db, req.body.challenge);
+      if (!challenge) {
+        return reply.code(401).send({ error: 'invalid or expired challenge' });
+      }
+
+      // A 6-digit code is a TOTP; anything else is treated as a recovery code.
+      const code = req.body.code;
+      const isTotp = /^[0-9]{6}$/.test(code);
+      const ok = isTotp
+        ? await verifyTotpForUser(db, challenge.userId, code, config.encryptionKey)
+        : await consumeRecoveryCode(db, challenge.userId, code);
+
+      if (!ok) {
+        await recordAudit(db, { event: 'mfa_failed', userId: challenge.userId, ...ctx });
+        return reply.code(401).send({ error: 'invalid code' });
+      }
+
+      const user = await db
+        .selectFrom('users')
+        .selectAll()
+        .where('id', '=', challenge.userId)
+        .executeTakeFirstOrThrow();
+
       await recordAudit(db, {
-        event: 'login_succeeded',
-        userId: result.user.id,
-        sessionId: session.id,
+        event: isTotp ? 'mfa_succeeded' : 'recovery_code_used',
+        userId: user.id,
         ...ctx,
       });
 
-      if (newDevice) {
-        await enqueue.enqueue({
-          kind: 'new_device_login',
-          recipient: result.user.email,
-          userId: result.user.id,
-          ctx: { appOrigin: config.appOrigin },
-        });
-      }
-
-      setSessionCookie(reply, config, token);
-      return reply.code(200).send(userReply(result.user));
+      const body = await completeLogin(
+        { config, db, enqueue },
+        reply,
+        user,
+        ctx,
+        req.auth?.session ?? null,
+      );
+      return reply.code(200).send(body);
     },
   );
 
