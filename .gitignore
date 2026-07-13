@@ -12,3 +12,5 @@ infra/backend.hcl
 web/test-results/
 web/playwright-report/
 web/blob-report/
+
+.idea/
