@@ -122,6 +122,7 @@ jobs:
           docker run -d --name smoke \
             -e NODE_ENV=production \
             -e DATABASE_URL=postgres://smoke:smoke@127.0.0.1:9/smoke \
+            -e APP_ORIGIN=https://smoke.example \
             -p 8000:8000 authledger-api:ci
           ok=0
           for _ in $(seq 1 30); do
