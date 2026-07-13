@@ -131,19 +131,30 @@ Acceptance (M3b):
 
 ## M4: MFA and social login
 
+Split into M4a (TOTP MFA) and M4b (OAuth). M4a is done; M4b is next.
+
 TOTP enrollment and verification with recovery codes, and OAuth login (Google
 and GitHub) through openid-client with explicit account-linking rules. SPA
-pages for enrollment, challenge, and recovery.
+pages for enrollment, challenge, and recovery. TOTP secrets are encrypted at
+rest with AES-256-GCM (key from ENCRYPTION_KEY, a stable persistent-stack
+secret). The password-ok-awaiting-second-factor state is a short-lived
+single-use challenge token, never a session flag (ADR-010).
 
-Acceptance:
-- TOTP setup, challenge, drift window, and recovery-code consumption covered
-  by tests (otplib generates codes in tests; no phone needed).
+Acceptance (M4a, done):
+- [x] TOTP setup, challenge, drift window, and recovery-code consumption
+  covered by tests (otplib generates real codes; no phone needed), plus a
+  browser e2e that enrolls then signs in through the second factor.
+- [x] Rate limits apply to TOTP and recovery attempts (the single-use
+  challenge makes each guess cost a fresh password login, so brute force is
+  infeasible without a per-user MFA lockout); enrollment and disablement are
+  audited and notified by email.
+- [x] An account with MFA enabled cannot be entered by password alone (login
+  returns a challenge with no session); proven by test.
+
+Acceptance (M4b, remaining):
 - OAuth flows tested against a stub OIDC provider in CI and manually against
   the real providers in the deployed test environment.
-- Rate limits and lockout apply to TOTP and recovery attempts; enrollment and
-  disablement are audited and notified.
-- An account with MFA enabled cannot be accessed by password alone, and a
-  linked OAuth login does not bypass the TOTP challenge; both proven by test.
+- A linked OAuth login does not bypass the TOTP challenge; proven by test.
 
 ## M5: Authorization
 

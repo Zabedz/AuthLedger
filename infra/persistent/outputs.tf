@@ -21,3 +21,7 @@ output "deploy_role_arn" {
 output "origin_verify_secret_arn" {
   value = aws_secretsmanager_secret.origin_verify.arn
 }
+
+output "encryption_key_secret_arn" {
+  value = aws_secretsmanager_secret.encryption_key.arn
+}

@@ -147,6 +147,7 @@ jobs:
             -e NODE_ENV=production \
             -e DATABASE_URL=postgres://authledger:authledger@localhost:5432/authledger \
             -e APP_ORIGIN=https://smoke.example \
+            -e ENCRYPTION_KEY="$(head -c 32 /dev/zero | base64)" \
             authledger-api:ci
           ok=0
           for _ in $(seq 1 30); do

@@ -246,3 +246,28 @@ Consequences: the code is complete and tested with real RSA-signed synthetic
 messages; the live wiring (SES configuration set, SNS topic, subscription) is
 additive (terraform plus the env var) and lands when SES is connected. The
 transactional claim-and-effect here is the pattern M6's Stripe inbox reuses.
+
+## ADR-015: TOTP MFA shape (2026-07-13)
+
+Context: M4a adds a second factor without violating ADR-010's invariant that a
+session row means fully authenticated.
+Decision: TOTP via otplib over a secret encrypted at rest with AES-256-GCM
+(key from ENCRYPTION_KEY). Enrollment stages the encrypted secret with
+totp_enabled_at null and only enables it once a code confirms it, returning
+single-use recovery codes (stored as SHA-256). Login verifies the password,
+then if MFA is on issues a short-lived single-use mfa_challenge token and
+returns it instead of a session; /login/mfa exchanges the challenge plus a
+TOTP or recovery code for a session. The session-minting tail (rotate, create,
+audit, new-device notice, set cookie) is extracted to completeLogin so the
+password path, the MFA path, and M4b's OAuth callback all share it. Disabling
+requires a current code. The encryption key lives in the persistent stack so
+it is stable across stand-ups; a rotated key would orphan every enrolled
+secret.
+Consequences: the half-auth state is a row in its own table, never a session
+flag, so requireAuth stays a simple "is there a session" check. TOTP replay is
+closed by tracking the last accepted time step (totp_last_step) and rejecting
+any code at or before it, so a code captured within its validity window cannot
+be reused. Enable and disable are audited and notified; disable also accepts a
+recovery code so a lost authenticator is not a lockout. M4b's OAuth converges
+on completeLogin and adds a provider_identities table plus a nullable
+password_hash.

@@ -31,13 +31,16 @@ resource "aws_iam_role_policy_attachment" "execution" {
 
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.database_url.arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_secretsmanager_secret.database_url.arn,
+      data.terraform_remote_state.persistent.outputs.encryption_key_secret_arn,
+    ]
   }
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  name   = "read-database-url"
+  name   = "read-secrets"
   role   = aws_iam_role.execution.id
   policy = data.aws_iam_policy_document.execution_secrets.json
 }
@@ -66,6 +69,10 @@ locals {
 
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
+      {
+        name      = "ENCRYPTION_KEY"
+        valueFrom = data.terraform_remote_state.persistent.outputs.encryption_key_secret_arn
+      },
     ]
 
     logConfiguration = {
