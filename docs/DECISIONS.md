@@ -423,3 +423,39 @@ dispute ledger postings, and a finance role holding payments.refund_over_ceiling
 pass on the API, then a pass on the SPA) caught the split-refund ceiling bypass,
 the same-amount refund idempotency-key collision, the non-idempotent create
 audit, and the unwrapped Stripe error path; all are closed here.
+
+## ADR-020: Double-entry ledger with a database-enforced balance invariant (2026-07-13)
+
+Context: M7 adds the ledger. Every money movement has to be recorded as balanced
+journal entries with the invariant enforced by the database (not the
+application), the ledger has to be append-only, and postings are driven by the
+internal event model from the webhook inbox.
+Decision: a posting is a signed integer minor amount on one column (a debit is
+positive, a credit negative) and an entry's postings sum to zero; a debit/credit
+pair would carry the same information with more columns and a redundant sign.
+The chart of accounts is reference data (ledger_accounts, seeded in migration
+0009). An entry carries a unique (kind, reference), where reference is the
+provider id, so a redelivered event posts once. The balance invariant is a
+DEFERRABLE INITIALLY DEFERRED constraint trigger that checks SUM(amount_minor)=0
+for the entry at commit, so a multi-posting entry is validated as a whole; this
+is the database constraint the plan asks for, not app logic. The ledger is
+append-only: BEFORE UPDATE and DELETE triggers refuse edits on both tables, and
+a correction is a reversing entry (kind 'reversal' with opposite postings, which
+leaves both rows in place). This is the project's first use of plpgsql
+triggers/functions, which is the right tool for an integrity rule the database
+must own. The ledger is Stripe-free: it references a movement by the provider
+intent id (a string), so it does not depend on the payments schema or on Stripe,
+and reconciliation (M7b) and tracing (M8) build on it. The webhook route is the
+composition point: on a settled charge it posts Dr stripe_receivable, Cr revenue
+for the gross in the same transaction as the payment status update, so a payment
+and its journal entry commit together or not at all.
+Consequences: postEntry must run inside a transaction (the webhook provides one)
+so the entry and its postings commit together; the postings are written as one
+multi-row insert, and the deferred constraint catches an imbalance at commit.
+accountBalance sums in SQL over bigint so many rows keep precision. TRUNCATE
+bypasses the append-only row triggers and is used only to reset the ledger
+between tests; the application never truncates. Deferred to M7b: refund and
+dispute postings (those events currently land 'unhandled' in provider_events),
+fee postings and the daily reconciliation against Stripe balance transactions
+(the source of truth for settled amounts and fees, after which stripe_receivable
+reflects the net owed), and admin ledger and reconciliation views gated by M5.
