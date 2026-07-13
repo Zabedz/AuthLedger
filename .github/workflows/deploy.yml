@@ -23,6 +23,8 @@ concurrency:
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   STATE_BUCKET: ${{ vars.STATE_BUCKET }}
+  # Sets the `region` variable for every terraform command in this workflow.
+  TF_VAR_region: ${{ vars.AWS_REGION }}
   TF_BACKEND_ARGS: >-
     -backend-config=bucket=${{ vars.STATE_BUCKET }}
     -backend-config=region=${{ vars.AWS_REGION }}
