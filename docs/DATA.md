@@ -14,6 +14,8 @@ never delivers to third parties.
   agent.
 - Email dispatch records: recipient and kind per message sent, for the
   per-account daily cap.
+- Email suppression records: an address SES reported as a bounce or complaint,
+  kept so the system never mails it again.
 
 Raw passwords are never stored. Session tokens and verification/reset tokens
 are stored as SHA-256 hashes in their own tables. A verification or reset

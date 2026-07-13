@@ -119,10 +119,15 @@ Acceptance (M3a, done):
 - [x] A killed job mid-run is retried without duplicate effects (dedupe-key
   claim-send-mark, proven by test).
 
-Acceptance (M3b, remaining):
-- Bounce and complaint notifications (SNS messages, for SES) are
-  signature-verified, replay-protected, and audited, exercised against the
-  SES mailbox simulator; the same discipline as the payment webhooks.
+Acceptance (M3b):
+- [x] Bounce and complaint notifications (SNS messages, for SES) are
+  signature-verified (RSA over the SNS canonical string, cert host pinned to
+  amazonaws.com), replay-protected (processed_sns_messages dedup), and audited;
+  bounced/complained addresses are suppressed and never sent to again. Proven
+  by tests that sign synthetic SNS messages with a real RSA keypair.
+- The live wiring (SES configuration set -> SNS topic -> subscription to the
+  deployed webhook URL, then the SES mailbox simulator exercise) is additive
+  (terraform plus the SES_SNS_TOPIC_ARN env) and lands when SES is connected.
 
 ## M4: MFA and social login
 

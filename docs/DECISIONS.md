@@ -226,3 +226,23 @@ Consequences: the deploy-first sequencing paid off exactly as intended, flushing
 these out before any feature depended on the pipeline. The environment is torn
 down after proving; the fixes stay in the workflow and infra for the next
 standup.
+
+## ADR-014: SES delivery-event webhook (2026-07-13)
+
+Context: SES reports bounces and complaints via SNS. The endpoint is public,
+so its only authentication is the SNS signature, and a wrong response poisons
+deliverability.
+Decision: verify the SNS signature by hand on node:crypto (no AWS SDK, keeping
+ADR-011's posture on the receive side), building the exact canonical string SNS
+signs and pinning the signing-cert host to sns.<region>.amazonaws.com to block
+cert spoofing and SSRF. A valid signature only proves AWS signed the message,
+not that it is our topic, so the route is not even registered in production
+until SES_SNS_TOPIC_ARN pins the topic; the handler also rejects any other
+topic. Notifications are deduped by SNS MessageId and the claim plus the
+suppress-and-audit run in one transaction, so a mid-process failure rolls the
+claim back and the SNS redelivery reprocesses. Bounced and complained addresses
+go in an email_suppressions table that deliverEmail checks before every send.
+Consequences: the code is complete and tested with real RSA-signed synthetic
+messages; the live wiring (SES configuration set, SNS topic, subscription) is
+additive (terraform plus the env var) and lands when SES is connected. The
+transactional claim-and-effect here is the pattern M6's Stripe inbox reuses.
