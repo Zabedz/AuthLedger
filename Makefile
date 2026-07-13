@@ -4,7 +4,7 @@ define with_env
 	set -a && . ./$(ENV_FILE) && set +a &&
 endef
 
-.PHONY: setup up down dev migrate migrate-down codegen test lint typecheck
+.PHONY: setup up down dev migrate migrate-down seed codegen test lint typecheck
 
 setup:
 	cp -n .env.example .env || true
@@ -26,6 +26,9 @@ migrate:
 
 migrate-down:
 	$(with_env) npm run migrate:down -w api
+
+seed: migrate
+	$(with_env) npm run seed -w api
 
 codegen:
 	$(with_env) npm run codegen -w api
