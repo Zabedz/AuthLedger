@@ -13,7 +13,13 @@ export type AuditEvent =
   | 'password_reset'
   | 'account_deleted'
   | 'email_bounced'
-  | 'email_complained';
+  | 'email_complained'
+  | 'mfa_enabled'
+  | 'mfa_disabled'
+  | 'mfa_challenge_issued'
+  | 'mfa_succeeded'
+  | 'mfa_failed'
+  | 'recovery_code_used';
 
 export interface AuditEntry {
   event: AuditEvent;

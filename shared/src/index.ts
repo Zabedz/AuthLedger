@@ -29,6 +29,7 @@ export const userSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   email: Type.String(),
   email_verified: Type.Boolean(),
+  mfa_enabled: Type.Boolean(),
   created_at: Type.String({ format: 'date-time' }),
 });
 export type UserReply = Static<typeof userSchema>;
@@ -57,6 +58,40 @@ export const resetPasswordSchema = Type.Object({
   password: Type.String({ minLength: 8, maxLength: 200 }),
 });
 export type ResetPasswordBody = Static<typeof resetPasswordSchema>;
+
+// Login returns either a session (with the user) or, when MFA is enabled, a
+// short-lived challenge the client exchanges for a session with a second factor.
+export const loginReplySchema = Type.Union([
+  userEnvelopeSchema,
+  Type.Object({ mfa_required: Type.Literal(true), challenge: Type.String() }),
+]);
+export type LoginReply = Static<typeof loginReplySchema>;
+
+export const mfaSetupReplySchema = Type.Object({
+  secret: Type.String(),
+  otpauth_uri: Type.String(),
+});
+export type MfaSetupReply = Static<typeof mfaSetupReplySchema>;
+
+export const totpCodeSchema = Type.Object({
+  code: Type.String({ minLength: 6, maxLength: 6, pattern: '^[0-9]{6}$' }),
+});
+export type TotpCodeBody = Static<typeof totpCodeSchema>;
+
+// A TOTP (6 digits) or a recovery code; used where either is accepted.
+export const mfaCodeSchema = Type.Object({
+  code: Type.String({ minLength: 6, maxLength: 40 }),
+});
+export type MfaCodeBody = Static<typeof mfaCodeSchema>;
+
+export const recoveryCodesSchema = Type.Object({ recovery_codes: Type.Array(Type.String()) });
+export type RecoveryCodesReply = Static<typeof recoveryCodesSchema>;
+
+export const mfaVerifySchema = Type.Object({
+  challenge: Type.String({ minLength: 1, maxLength: 512 }),
+  code: Type.String({ minLength: 6, maxLength: 20 }),
+});
+export type MfaVerifyBody = Static<typeof mfaVerifySchema>;
 
 export const sessionItemSchema = Type.Object({
   id: Type.String({ format: 'uuid' }),

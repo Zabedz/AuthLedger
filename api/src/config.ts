@@ -19,9 +19,13 @@ export interface Config {
   databaseUrl: string;
   appOrigin: string;
   smtp: SmtpConfig;
+  encryptionKey: Buffer;
   sesSnsTopicArn: string | undefined;
   stripeSecretKey: string | undefined;
 }
+
+// A fixed key for dev and test only. Production supplies its own via env.
+const DEV_ENCRYPTION_KEY = Buffer.alloc(32, 7);
 
 function safeOrigin(value: string): string | null {
   try {
@@ -86,6 +90,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
+  // 32-byte AES key (base64) that encrypts TOTP secrets at rest. Required in
+  // production; dev and test fall back to a fixed key.
+  let encryptionKey = DEV_ENCRYPTION_KEY;
+  if (env.ENCRYPTION_KEY) {
+    encryptionKey = Buffer.from(env.ENCRYPTION_KEY, 'base64');
+    if (encryptionKey.length !== 32) {
+      throw new Error('ENCRYPTION_KEY must be 32 bytes base64-encoded');
+    }
+  } else if (nodeEnv === 'production') {
+    throw new Error('ENCRYPTION_KEY is required in production');
+  }
+
   // When set, the SES delivery-event webhook rejects SNS messages from any
   // other topic. Unset in dev and CI, where the topic does not exist.
   const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
@@ -97,6 +113,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl,
     appOrigin,
     smtp,
+    encryptionKey,
     sesSnsTopicArn,
     stripeSecretKey,
   };

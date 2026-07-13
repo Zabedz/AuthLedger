@@ -4,6 +4,7 @@ import type { DB } from '../db/types.js';
 export interface PurgeCounts {
   sessions: number;
   tokens: number;
+  mfaChallenges: number;
   snsMessages: number;
 }
 
@@ -23,6 +24,11 @@ export async function purgeExpired(db: Kysely<DB>, now: Date = new Date()): Prom
     .where((eb) => eb.or([eb('expires_at', '<', now), eb('consumed_at', 'is not', null)]))
     .executeTakeFirst();
 
+  const mfaChallenges = await db
+    .deleteFrom('mfa_challenges')
+    .where((eb) => eb.or([eb('expires_at', '<', now), eb('consumed_at', 'is not', null)]))
+    .executeTakeFirst();
+
   const snsCutoff = new Date(now.getTime() - SNS_REPLAY_RETENTION_DAYS * 24 * 3600 * 1000);
   const snsMessages = await db
     .deleteFrom('processed_sns_messages')
@@ -32,6 +38,7 @@ export async function purgeExpired(db: Kysely<DB>, now: Date = new Date()): Prom
   return {
     sessions: Number(sessions.numDeletedRows),
     tokens: Number(tokens.numDeletedRows),
+    mfaChallenges: Number(mfaChallenges.numDeletedRows),
     snsMessages: Number(snsMessages.numDeletedRows),
   };
 }

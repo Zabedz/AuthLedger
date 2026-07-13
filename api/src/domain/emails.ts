@@ -6,7 +6,9 @@ export type EmailKind =
   | 'password_changed'
   | 'new_device_login'
   | 'account_locked'
-  | 'account_deleted';
+  | 'account_deleted'
+  | 'mfa_enabled'
+  | 'mfa_disabled';
 
 function verifyLink(appOrigin: string, token: string): string {
   return `${appOrigin}/verify-email?token=${encodeURIComponent(token)}`;
@@ -60,6 +62,18 @@ export function composeEmail(kind: EmailKind, to: string, ctx: EmailContext): Em
         to,
         subject: 'Your authledger account was deleted',
         text: `Your account and personal data have been removed. If you did not request this, contact support.`,
+      };
+    case 'mfa_enabled':
+      return {
+        to,
+        subject: 'Two-factor authentication is on',
+        text: `Two-factor authentication was turned on for your account. If this was not you, reset your password immediately at ${ctx.appOrigin}.`,
+      };
+    case 'mfa_disabled':
+      return {
+        to,
+        subject: 'Two-factor authentication is off',
+        text: `Two-factor authentication was turned off for your account. If this was not you, reset your password immediately at ${ctx.appOrigin}.`,
       };
   }
 }

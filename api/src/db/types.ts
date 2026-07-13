@@ -9,6 +9,8 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
 export type Json = JsonValue;
 
 export type JsonArray = JsonValue[];
@@ -61,6 +63,23 @@ export interface EmailSuppressions {
   reason: string;
 }
 
+export interface MfaChallenges {
+  consumed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  id: Generated<string>;
+  token_hash: Buffer;
+  user_id: string;
+}
+
+export interface MfaRecoveryCodes {
+  code_hash: Buffer;
+  consumed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  user_id: string;
+}
+
 export interface Pgmigrations {
   id: Generated<number>;
   name: string;
@@ -92,6 +111,9 @@ export interface Users {
   id: Generated<string>;
   locked_until: Timestamp | null;
   password_hash: string;
+  totp_enabled_at: Timestamp | null;
+  totp_last_step: Int8 | null;
+  totp_secret: Buffer | null;
   updated_at: Generated<Timestamp>;
 }
 
@@ -100,6 +122,8 @@ export interface DB {
   auth_tokens: AuthTokens;
   email_dispatches: EmailDispatches;
   email_suppressions: EmailSuppressions;
+  mfa_challenges: MfaChallenges;
+  mfa_recovery_codes: MfaRecoveryCodes;
   pgmigrations: Pgmigrations;
   processed_sns_messages: ProcessedSnsMessages;
   sessions: Sessions;
