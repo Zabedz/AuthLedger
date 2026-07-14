@@ -501,3 +501,45 @@ admin view; pagination with the ran_at watermark; refund and dispute fee
 reversals; the reverse-direction and amount-mismatch checks; and a per-currency
 fees-posted summary (the postings are currency-tagged; only the summary metric
 sums across currencies).
+
+## ADR-022: Distributed tracing with hand-written spans (2026-07-14)
+
+Context: M8 wants one trace that runs from an HTTP request through the Stripe
+webhook to the ledger posting, with the trace id on every log line, and an
+exporter that only ships when a collector is configured. The service is ESM, and
+OpenTelemetry auto-instrumentation patches modules through a loader hook that is
+awkward under ESM and pulls in a large instrumentation surface.
+Decision: instrument by hand. tracing.ts builds a NodeTracerProvider and registers
+it only when an exporter is chosen: OTEL_EXPORTER_OTLP_ENDPOINT selects a batched
+OTLP/HTTP exporter, OTEL_TRACES_CONSOLE selects the console exporter for local
+inspection, and with neither set the provider is never registered. A Fastify
+plugin (plugins/tracing) opens one SERVER span per request and keeps it active for
+the whole request by wrapping the Fastify continuation in context.with, the same
+way the existing request-id AsyncLocalStorage wraps it; the span is renamed to the
+matched route template on response so its name stays low-cardinality. postEntry in
+the ledger domain opens a child span around its inserts, so a webhook or a
+reconciliation run traces down to the write. The log mixin reads the active span
+and adds trace_id and span_id, so logs and traces join on trace_id. The domain
+function reaches for @opentelemetry/api, which is a no-op when no provider is
+registered, so tracing stays a single dependency at the domain edge rather than a
+parameter threaded through every signature.
+Consequences: with no exporter configured, no provider is registered, the API's
+tracer and getActiveSpan are the built-in no-ops, and the request hooks are not
+registered at all, so the default path is unchanged and effectively free; tests
+and the OpenAPI generator build the server with tracing off and are untouched.
+Coverage is deliberately narrow: only the HTTP span and the ledger posting are
+instrumented, not individual database queries or outbound calls, which keeps the
+trace readable and avoids the auto-instrumentation footprint; a query-level span
+can be added later behind the same provider if a latency question needs it. This
+is the first cross-cutting import into the otherwise db-in/data-out domain, so it
+is bounded by a rule: the domain may import @opentelemetry/api, the
+no-op-until-registered facade, but never the SDK or an exporter, so the heavy
+packages stay in the composition root. Span attributes carry no secret or PII,
+because a span bypasses the pino redaction path (logging.ts) and reaches the
+collector as written; the current ledger.kind, reference, currency, and
+posting_count are safe, and a Stripe intent id is not PII.
+Because the spans are manual, a new subsystem that should appear in a trace has to
+be instrumented on purpose, which is the cost of not patching modules. The OTLP
+exporter reads the standard OTEL_ environment variables (endpoint, headers) rather
+than taking wiring in code, so pointing at Grafana Cloud or any collector is
+configuration, and the collector account itself is the remaining gated piece.

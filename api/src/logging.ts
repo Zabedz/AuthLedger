@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { isSpanContextValid, trace } from '@opentelemetry/api';
 import type { FastifyServerOptions } from 'fastify';
 import type { Config } from './config.js';
 
@@ -17,7 +18,18 @@ export function loggerOptions(config: Config): FastifyServerOptions['logger'] {
     base: { service: 'authledger-api', env: config.nodeEnv },
     mixin() {
       const ctx = requestContext.getStore();
-      return ctx ? { req_id: ctx.requestId } : {};
+      const base = ctx ? { req_id: ctx.requestId } : {};
+      // When tracing is on, tie the line to its span so logs and traces join on
+      // trace_id. getActiveSpan is undefined when tracing is off, so this is a
+      // no-op then.
+      const span = trace.getActiveSpan();
+      if (span) {
+        const sc = span.spanContext();
+        if (isSpanContextValid(sc)) {
+          return { ...base, trace_id: sc.traceId, span_id: sc.spanId };
+        }
+      }
+      return base;
     },
     redact: {
       paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],

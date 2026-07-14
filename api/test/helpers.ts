@@ -23,6 +23,7 @@ export const testConfig: Config = {
     pass: undefined,
     from: 'test@authledger.test',
   },
+  tracing: { consoleExporter: false, otlpEndpoint: undefined },
   encryptionKey: Buffer.alloc(32, 9),
   oauth: { google: undefined, github: undefined },
   sesSnsTopicArn: undefined,

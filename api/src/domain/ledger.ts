@@ -1,5 +1,8 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import type { Kysely } from 'kysely';
 import type { DB } from '../db/types.js';
+
+const tracer = trace.getTracer('authledger-ledger');
 
 export type LedgerAccount = 'stripe_receivable' | 'revenue' | 'fees' | 'refunds' | 'disputes';
 export type LedgerEntryKind = 'charge' | 'refund' | 'fee' | 'dispute' | 'reversal';
@@ -31,26 +34,44 @@ export async function postEntry(
     );
   }
 
-  const created = await db
-    .insertInto('ledger_entries')
-    .values({ kind: entry.kind, reference: entry.reference, currency: entry.currency })
-    .onConflict((oc) => oc.columns(['kind', 'reference']).doNothing())
-    .returning('id')
-    .executeTakeFirst();
-  if (!created) {
-    return false;
-  }
-  await db
-    .insertInto('ledger_postings')
-    .values(
-      entry.postings.map((p) => ({
-        entry_id: created.id,
-        account: p.account,
-        amount_minor: String(p.amountMinor),
-      })),
-    )
-    .execute();
-  return true;
+  // A child span of the request that triggered the posting (a webhook or a
+  // reconciliation run), so the trace runs from the HTTP request down to the
+  // ledger write. The tracer is a no-op when tracing is off.
+  return tracer.startActiveSpan('ledger.post_entry', async (span) => {
+    span.setAttribute('ledger.kind', entry.kind);
+    span.setAttribute('ledger.reference', entry.reference);
+    span.setAttribute('ledger.currency', entry.currency);
+    span.setAttribute('ledger.posting_count', entry.postings.length);
+    try {
+      const created = await db
+        .insertInto('ledger_entries')
+        .values({ kind: entry.kind, reference: entry.reference, currency: entry.currency })
+        .onConflict((oc) => oc.columns(['kind', 'reference']).doNothing())
+        .returning('id')
+        .executeTakeFirst();
+      if (!created) {
+        span.setAttribute('ledger.duplicate', true);
+        return false;
+      }
+      await db
+        .insertInto('ledger_postings')
+        .values(
+          entry.postings.map((p) => ({
+            entry_id: created.id,
+            account: p.account,
+            amount_minor: String(p.amountMinor),
+          })),
+        )
+        .execute();
+      return true;
+    } catch (err) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.recordException(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 // The signed balance of an account, summed in the database over bigint so a

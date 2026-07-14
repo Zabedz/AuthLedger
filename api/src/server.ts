@@ -18,6 +18,7 @@ import { registerAuthzGuard } from './plugins/authz-guard.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
 import { registerSessionAuth } from './plugins/session-auth.js';
+import { registerHttpTracing } from './plugins/tracing.js';
 import { adminRoutes } from './routes/admin.js';
 import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
@@ -27,6 +28,7 @@ import { oauthRoutes } from './routes/oauth.js';
 import { paymentRoutes } from './routes/payments.js';
 import { stripeWebhookRoutes } from './routes/stripe-webhooks.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { tracingEnabled } from './tracing.js';
 
 export interface ServerDeps {
   health: HealthDeps;
@@ -72,6 +74,13 @@ export async function buildServer(
   app.addHook('onRequest', (req, _reply, done) => {
     requestContext.run({ requestId: req.id }, done);
   });
+
+  // Registered after the request-id hook so the span context nests inside it and
+  // stays active for the whole request. Gated by the same predicate that decides
+  // whether startTracing registers a provider, so the two never disagree.
+  if (tracingEnabled(config)) {
+    registerHttpTracing(app);
+  }
 
   app.addHook('onSend', async (req, reply) => {
     reply.header('x-request-id', req.id);

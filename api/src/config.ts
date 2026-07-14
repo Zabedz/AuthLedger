@@ -12,6 +12,13 @@ export interface SmtpConfig {
   from: string;
 }
 
+export interface TracingConfig {
+  // Print spans to stdout, for local inspection without a collector.
+  consoleExporter: boolean;
+  // The OTLP/HTTP collector base endpoint; when set, spans are batch-exported.
+  otlpEndpoint: string | undefined;
+}
+
 export interface Config {
   nodeEnv: NodeEnv;
   port: number;
@@ -19,6 +26,7 @@ export interface Config {
   databaseUrl: string;
   appOrigin: string;
   smtp: SmtpConfig;
+  tracing: TracingConfig;
   encryptionKey: Buffer;
   oauth: OAuthConfig;
   sesSnsTopicArn: string | undefined;
@@ -148,6 +156,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const adminEmail = env.ADMIN_EMAIL || undefined;
   const rateLimitEnabled = env.DISABLE_RATE_LIMIT !== 'true';
 
+  // Tracing is off unless an exporter is chosen: the OTLP endpoint follows the
+  // OpenTelemetry env convention, and the console exporter is a local switch.
+  const tracing: TracingConfig = {
+    consoleExporter: env.OTEL_TRACES_CONSOLE === 'true',
+    otlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
+  };
+
   return {
     nodeEnv,
     port,
@@ -155,6 +170,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     databaseUrl,
     appOrigin,
     smtp,
+    tracing,
     encryptionKey,
     oauth,
     sesSnsTopicArn,

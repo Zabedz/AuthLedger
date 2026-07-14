@@ -7,8 +7,10 @@ import { ensureAdminRole } from './domain/authz.js';
 import { createSmtpMailer } from './domain/mailer.js';
 import { createJobRunner } from './jobs/queue.js';
 import { buildServer } from './server.js';
+import { startTracing, stopTracing } from './tracing.js';
 
 const config = loadConfig();
+const tracingActive = startTracing(config);
 const pool = createPool(config.databaseUrl);
 const db = createDb(pool);
 const mailer = createSmtpMailer(config.smtp, config.nodeEnv === 'production');
@@ -25,6 +27,13 @@ const app = await buildServer(config, {
     pendingMigrations: () => pendingMigrations(pool, migrationsDir),
   },
 });
+
+if (tracingActive) {
+  app.log.info(
+    { console: config.tracing.consoleExporter, otlp: config.tracing.otlpEndpoint !== undefined },
+    'tracing enabled',
+  );
+}
 
 // Started before listen so no request is served before the queue accepts work.
 const jobs = createJobRunner(config.databaseUrl, db, mailer, app.log);
@@ -55,6 +64,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
       .close()
       .then(() => jobs.stop())
       .then(() => pool.end())
+      .then(() => stopTracing())
       .then(() => process.exit(0))
       .catch((err: unknown) => {
         app.log.error({ err }, 'shutdown failed');
