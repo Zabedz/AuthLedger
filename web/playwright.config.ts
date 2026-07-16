@@ -14,9 +14,13 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // The html report plus retained traces are what a 3am nightly failure leaves
+  // behind (the workflow uploads them); with retries at 0 an on-first-retry
+  // trace would never record.
+  reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
@@ -36,6 +40,13 @@ export default defineConfig({
         // Many journeys share one server and one client IP here; the per-route
         // limits are covered by the api tests instead.
         DISABLE_RATE_LIMIT: 'true',
+        // Set in the nightly workflow (with a stripe listen forwarder running)
+        // so the money journey can pay, settle, refund, and reconcile; absent
+        // in the plain CI e2e job, where that spec self-skips.
+        ...(process.env.STRIPE_SECRET_KEY && { STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY }),
+        ...(process.env.STRIPE_WEBHOOK_SECRET && {
+          STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+        }),
       },
     },
     {

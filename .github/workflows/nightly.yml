@@ -1,0 +1,105 @@
+name: Nightly
+
+# The full happy path against the composed stack: register, verify, MFA, pay,
+# settle through a real Stripe webhook, refund, reconcile. Runs nightly because
+# it depends on Stripe's test mode over the network, which is too slow and too
+# external for the per-push gate. The money spec needs STRIPE_SECRET_KEY (repo
+# secret) and the stripe listen forwarder this workflow runs.
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A dispatched run overlapping the scheduled one would cross-contaminate the
+# shared Stripe test account's event stream; queue instead.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  happy-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18.4-bookworm
+        env:
+          POSTGRES_USER: authledger
+          POSTGRES_PASSWORD: authledger
+          POSTGRES_DB: authledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authledger -d authledger"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+      mailpit:
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+    env:
+      E2E_DATABASE_URL: postgres://authledger:authledger@localhost:5432/authledger_e2e
+      MAILPIT_API_URL: http://localhost:8025
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w shared
+      - name: Create and migrate the e2e database
+        run: |
+          PGPASSWORD=authledger psql -h localhost -U authledger -d postgres \
+            -c 'CREATE DATABASE authledger_e2e'
+          DATABASE_URL="$E2E_DATABASE_URL" npm run migrate:up -w api
+      - name: Start the Stripe webhook forwarder
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          # --print-secret exits after printing the signing secret the listen
+          # session will use; the forwarder then runs detached on the host
+          # network so it can reach the API the Playwright config starts.
+          secret=$(docker run --rm -e STRIPE_API_KEY="$STRIPE_SECRET_KEY" \
+            stripe/stripe-cli:v1.43.7 listen --print-secret)
+          echo "::add-mask::$secret"
+          echo "STRIPE_WEBHOOK_SECRET=$secret" >> "$GITHUB_ENV"
+          docker run -d --name stripe-listen --network host \
+            -e STRIPE_API_KEY="$STRIPE_SECRET_KEY" \
+            stripe/stripe-cli:v1.43.7 listen \
+            --forward-to http://localhost:8100/api/webhooks/stripe
+          # A detached container that dies a second later would otherwise
+          # surface only as a settlement-poll timeout ten minutes from now.
+          for i in $(seq 1 15); do
+            if docker logs stripe-listen 2>&1 | grep -q 'Ready!'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'stripe listen never became ready:'
+          docker logs stripe-listen 2>&1 | tail -20
+          exit 1
+      - name: Install Playwright browser
+        run: npx --workspace @authledger/web playwright install --with-deps chromium
+      - name: Run the composed-stack e2e with the money journey
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: npm run e2e -w web
+      - name: Forwarder logs on failure
+        if: failure()
+        run: docker logs stripe-listen 2>&1 | tail -50
+      - name: Upload the report and traces on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nightly-playwright
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
