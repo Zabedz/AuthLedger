@@ -73,6 +73,12 @@ export function reportServerError(error: unknown, request: FastifyRequest): void
   });
 }
 
+// Reports a failure from a one-off job (a scheduled task, not a request), tagged
+// by job name. A no-op when Sentry was never initialized.
+export function reportJobFailure(error: unknown, job: string): void {
+  Sentry.captureException(error, { tags: { job } });
+}
+
 export async function stopSentry(): Promise<void> {
   // Flushes pending events within the timeout, then disables the client. A no-op
   // when Sentry was never initialized.

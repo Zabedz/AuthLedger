@@ -191,7 +191,15 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
     async () => {
       const rows = await db
         .selectFrom('reconciliations')
-        .select(['id', 'ran_at', 'checked', 'fees_posted_minor', 'discrepancy_count'])
+        .select([
+          'id',
+          'ran_at',
+          'status',
+          'error',
+          'checked',
+          'fees_posted_minor',
+          'discrepancy_count',
+        ])
         .orderBy('ran_at', 'desc')
         .limit(RECON_PAGE)
         .execute();
@@ -199,6 +207,8 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
         reconciliations: rows.map((r) => ({
           id: r.id,
           ran_at: r.ran_at.toISOString(),
+          status: r.status === 'failed' ? ('failed' as const) : ('ok' as const),
+          error: r.error,
           checked: r.checked,
           fees_posted_minor: Number(r.fees_posted_minor),
           discrepancy_count: r.discrepancy_count,

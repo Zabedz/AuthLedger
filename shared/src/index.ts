@@ -211,6 +211,8 @@ export type ReconciliationResult = Static<typeof reconciliationResultSchema>;
 export const reconciliationSummarySchema = Type.Object({
   id: Type.String({ format: 'uuid' }),
   ran_at: Type.String({ format: 'date-time' }),
+  status: Type.Union([Type.Literal('ok'), Type.Literal('failed')]),
+  error: Type.Union([Type.String(), Type.Null()]),
   checked: Type.Integer(),
   fees_posted_minor: Type.Integer(),
   discrepancy_count: Type.Integer(),

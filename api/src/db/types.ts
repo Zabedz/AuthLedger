@@ -160,9 +160,11 @@ export interface Reconciliations {
   checked: number;
   discrepancies: Json;
   discrepancy_count: number;
+  error: string | null;
   fees_posted_minor: Int8;
   id: Generated<string>;
   ran_at: Generated<Timestamp>;
+  status: Generated<string>;
 }
 
 export interface Refunds {

@@ -1,7 +1,9 @@
+import pg from 'pg';
 import type Stripe from 'stripe';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { cookieOf, makeTestServer, truncateAll, withOrigin, type TestContext } from './helpers.js';
-import { reconcile } from '../src/domain/reconciliation.js';
+import { createDb } from '../src/db/client.js';
+import { reconcile, runAndRecordReconciliation } from '../src/domain/reconciliation.js';
 import { accountBalance, postCharge } from '../src/domain/ledger.js';
 import { assignRole } from '../src/domain/authz.js';
 
@@ -104,6 +106,60 @@ describe('reconciliation', () => {
     ]);
     expect(clean.discrepancies).toEqual([]);
   });
+
+  it('records a failed run and rethrows, so silence never means "ran and broke"', async () => {
+    const failing = {
+      balanceTransactions: {
+        list: async () => {
+          throw new Error('stripe is down');
+        },
+      },
+    } as unknown as Stripe;
+
+    await expect(runAndRecordReconciliation(ctx.db, failing)).rejects.toThrow('stripe is down');
+    const rows = await ctx.db.selectFrom('reconciliations').selectAll().execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe('failed');
+    expect(rows[0]!.error).toContain('stripe is down');
+    expect(rows[0]!.checked).toBe(0);
+  });
+
+  it('records a successful run with status ok and no error', async () => {
+    const ok = stubStripe([]);
+    const outcome = await runAndRecordReconciliation(ctx.db, ok);
+    const row = await ctx.db
+      .selectFrom('reconciliations')
+      .selectAll()
+      .where('id', '=', outcome.id)
+      .executeTakeFirstOrThrow();
+    expect(row.status).toBe('ok');
+    expect(row.error).toBeNull();
+  });
+
+  it('keeps the original cause when recording the failure also fails', async () => {
+    const failing = {
+      balanceTransactions: {
+        list: async () => {
+          throw new Error('stripe is down');
+        },
+      },
+    } as unknown as Stripe;
+    // A database that cannot be reached, so the failure row cannot be written
+    // either; the rejection must carry both causes, original first.
+    const deadPool = new pg.Pool({
+      connectionString: 'postgres://127.0.0.1:1/unreachable',
+      connectionTimeoutMillis: 200,
+    });
+    const deadDb = createDb(deadPool);
+
+    const rejection = await runAndRecordReconciliation(deadDb, failing).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).errors[0]).toMatchObject({ message: 'stripe is down' });
+    await deadPool.end();
+  });
 });
 
 describe('admin reconciliation and ledger endpoints', () => {
@@ -147,6 +203,37 @@ describe('admin reconciliation and ledger endpoints', () => {
     });
     expect(history.json().reconciliations).toHaveLength(1);
     expect(history.json().reconciliations[0].discrepancy_count).toBe(1);
+    expect(history.json().reconciliations[0].status).toBe('ok');
+    expect(history.json().reconciliations[0].error).toBeNull();
+  });
+
+  it('surfaces a failed run in the history after the endpoint 500s', async () => {
+    await ctx.close();
+    ctx = await makeTestServer({
+      stripe: {
+        balanceTransactions: {
+          list: async () => {
+            throw new Error('stripe is down');
+          },
+        },
+      } as unknown as Stripe,
+    });
+    await truncateAll(ctx.db);
+    const cookie = await admin();
+
+    const res = await ctx.app.inject(
+      withOrigin({ method: 'POST', url: '/api/admin/reconcile', headers: { cookie } }),
+    );
+    expect(res.statusCode).toBe(500);
+
+    const history = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/admin/reconciliations',
+      headers: { cookie },
+    });
+    expect(history.json().reconciliations).toHaveLength(1);
+    expect(history.json().reconciliations[0].status).toBe('failed');
+    expect(history.json().reconciliations[0].error).toContain('stripe is down');
   });
 
   it('forbids reconciliation without ledger.reconcile', async () => {

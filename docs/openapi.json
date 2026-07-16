@@ -1516,6 +1516,8 @@
                         "required": [
                           "id",
                           "ran_at",
+                          "status",
+                          "error",
                           "checked",
                           "fees_posted_minor",
                           "discrepancy_count"
@@ -1528,6 +1530,32 @@
                           "ran_at": {
                             "format": "date-time",
                             "type": "string"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ok"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "checked": {
                             "type": "integer"

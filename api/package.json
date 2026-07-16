@@ -14,6 +14,7 @@
     "migrate:create": "node-pg-migrate create -j sql",
     "codegen": "kysely-codegen --dialect postgres --exclude-pattern \"pgboss.*\" --out-file src/db/types.ts",
     "openapi:gen": "tsx src/openapi-gen.ts",
+    "job:reconcile": "tsx --env-file=../.env src/jobs/reconcile.ts",
     "seed": "tsx --env-file=../.env src/seed.ts"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "otplib": "^13.4.1",
     "pg": "^8.22.0",
     "pg-boss": "^12.26.0",
+    "pino": "^10.3.1",
     "stripe": "^22.3.1"
   },
   "devDependencies": {

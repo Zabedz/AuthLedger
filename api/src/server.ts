@@ -58,10 +58,7 @@ export async function buildServer(
 ): Promise<FastifyInstance> {
   const baseLogger = loggerOptions(config);
   const app = Fastify({
-    logger:
-      opts.loggerStream && typeof baseLogger === 'object'
-        ? { ...baseLogger, stream: opts.loggerStream }
-        : baseLogger,
+    logger: opts.loggerStream ? { ...baseLogger, stream: opts.loggerStream } : baseLogger,
     logController: new LogController({ requestIdLogLabel: 'req_id' }),
     // Behind the ALB the client address arrives in x-forwarded-for.
     trustProxy: config.nodeEnv === 'production',

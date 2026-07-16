@@ -585,3 +585,45 @@ reportServerError) stay at the composition-root, plugin, and route edge; they do
 not go into the db-in/data-out domain, which keeps to the same rule ADR-022 set
 for the tracing facade. Turning on release health or performance later is
 re-enabling the dropped integrations behind the same DSN.
+
+## ADR-024: The scheduled reconciliation run is a one-off task, not a queue job (2026-07-16)
+
+Context: ADR-021 deferred the daily reconciliation schedule. The app already has
+a pg-boss queue for email work, so the obvious move was a pg-boss cron job. But
+the queue lives inside the API service process: a reconciliation scheduled there
+runs on whichever instance holds the singleton, competes with request traffic,
+and disappears entirely if the service is scaled to zero, which this project's
+ephemeral environment regularly is. The deploy already runs one-off work (the
+migrate task) as a separate ECS task from the same image with a command
+override, started by the deploy workflow.
+Decision: the schedule follows the migrate pattern, not the queue. A thin
+entrypoint (jobs/reconcile.ts) assembles config, Sentry, tracing, a pino logger
+from the same loggerOptions the API uses, a pool, and a Stripe client, then
+calls runAndRecordReconciliation, the same function the admin endpoint calls.
+EventBridge Scheduler starts it daily via ecs:RunTask on a dedicated task
+family. The process exits 0 on success (discrepancies are a finding for the
+admin view, logged at warn, not a failure) and 1 on failure, so the task state
+reflects the outcome. runAndRecordReconciliation now records a failed run in
+the reconciliations table (status and error columns, migration 0011) before
+rethrowing, so the run history never shows silence for a run that broke; the
+admin list endpoint surfaces both columns. The whole run is wrapped in a
+reconciliation.scheduled_run span and failures are reported to Sentry tagged
+job=reconcile.
+Consequences: the job needs no live API instance and no queue singleton; it
+scales to zero with the rest of the ephemeral stack and costs nothing between
+runs. The same code path serves the button and the schedule, so proving one
+proves the other. Three hedges are accepted: a run that dies before it can
+write the failure row (OOM, SIGKILL) still leaves silence, visible only as a
+missing day in the history and a failed task in ECS; failure recording shares
+the database with the thing it reports on, so a database outage is reported by
+Sentry and the exit code, not the history; and a run the scheduler never
+manages to start (an ecs:RunTask invoke failure) leaves neither a row nor a
+Sentry event, mitigated by the scheduler's invoke retries and self-healing at
+the next day's run, since every run re-scans the latest page idempotently. On
+a failed row, checked and fees_posted_minor read 0 regardless of how far the
+run got before breaking; fees post per settlement in their own transactions,
+so the ledger, not the run history, is authoritative for what a partial run
+posted, and a re-run skips what already landed without recounting it. The
+deferred pagination watermark (ADR-021) must key off the newest status ok row,
+not the newest row. The Terraform for the schedule lives in the ephemeral
+stack and is proven at the next standup.
