@@ -42,6 +42,26 @@ terraform init -backend-config=../backend.hcl
 terraform apply
 ```
 
+## Account-issued secret values
+
+Three persistent-stack secrets hold credentials Terraform cannot generate: the
+Stripe test-mode secret key, the Grafana Cloud OTLP basic-auth header, and the
+Sentry DSN. Terraform creates the containers; push the values once after the
+persistent apply, and before any ephemeral stand-up (an ECS task referencing a
+valueless secret fails to start):
+
+```sh
+aws secretsmanager put-secret-value \
+  --secret-id authledger/stripe-secret-key --secret-string "sk_test_..."
+aws secretsmanager put-secret-value \
+  --secret-id authledger/otel-otlp-headers \
+  --secret-string "Authorization=Basic <instance-id:token, base64>"
+aws secretsmanager put-secret-value \
+  --secret-id authledger/sentry-dsn --secret-string "https://...ingest...sentry.io/..."
+```
+
+The values live in the root `.env` for local dev; use the same ones.
+
 ## Environment lifecycle
 
 The deploy workflow (`.github/workflows/deploy.yml`) owns the ordering; the
@@ -67,9 +87,9 @@ terraform destroy -var state_bucket=<state-bucket-name> -var image_tag=unused
 ```
 
 While torn down, the public URL stays live: the SPA serves from S3 and
-`/api/*` answers 502. Cost while torn down is ECR images, S3 objects, one
-Secrets Manager secret, and the state bucket: pennies. Cost while up is
-roughly $50/month, itemized in docs/RESEARCH.md.
+`/api/*` answers 502. Cost while torn down is ECR images, S3 objects, a
+handful of Secrets Manager secrets, and the state bucket: pennies. Cost while
+up is roughly $50/month, itemized in docs/RESEARCH.md.
 
 One footgun: a manual `terraform apply` on the persistent stack without
 `-var api_origin_domain=...` while the environment is up silently detaches

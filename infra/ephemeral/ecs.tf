@@ -35,6 +35,9 @@ data "aws_iam_policy_document" "execution_secrets" {
     resources = [
       aws_secretsmanager_secret.database_url.arn,
       data.terraform_remote_state.persistent.outputs.encryption_key_secret_arn,
+      data.terraform_remote_state.persistent.outputs.stripe_secret_key_secret_arn,
+      data.terraform_remote_state.persistent.outputs.otel_otlp_headers_secret_arn,
+      data.terraform_remote_state.persistent.outputs.sentry_dsn_secret_arn,
     ]
   }
 }
@@ -65,6 +68,8 @@ locals {
       { name = "NODE_ENV", value = "production" },
       { name = "PORT", value = "8000" },
       { name = "APP_ORIGIN", value = data.terraform_remote_state.persistent.outputs.app_url },
+      # An empty endpoint leaves tracing off (config.ts treats empty as unset).
+      { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.otlp_endpoint },
     ]
 
     secrets = [
@@ -72,6 +77,18 @@ locals {
       {
         name      = "ENCRYPTION_KEY"
         valueFrom = data.terraform_remote_state.persistent.outputs.encryption_key_secret_arn
+      },
+      {
+        name      = "STRIPE_SECRET_KEY"
+        valueFrom = data.terraform_remote_state.persistent.outputs.stripe_secret_key_secret_arn
+      },
+      {
+        name      = "OTEL_EXPORTER_OTLP_HEADERS"
+        valueFrom = data.terraform_remote_state.persistent.outputs.otel_otlp_headers_secret_arn
+      },
+      {
+        name      = "SENTRY_DSN"
+        valueFrom = data.terraform_remote_state.persistent.outputs.sentry_dsn_secret_arn
       },
     ]
 

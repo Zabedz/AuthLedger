@@ -20,6 +20,27 @@ resource "aws_secretsmanager_secret_version" "encryption_key" {
   secret_string = random_bytes.encryption_key.base64
 }
 
+# Account-issued credentials the ephemeral tasks read: the Stripe test-mode
+# secret key, the Grafana Cloud OTLP basic-auth header, and the Sentry DSN.
+# Terraform owns the containers only; the values come from the provider
+# dashboards and are pushed once with `aws secretsmanager put-secret-value`.
+# A container with no value fails task startup, so pushing the values precedes
+# the first ephemeral apply (the standup runbook covers it).
+resource "aws_secretsmanager_secret" "stripe_secret_key" {
+  name                    = "authledger/stripe-secret-key"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret" "otel_otlp_headers" {
+  name                    = "authledger/otel-otlp-headers"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret" "sentry_dsn" {
+  name                    = "authledger/sentry-dsn"
+  recovery_window_in_days = 0
+}
+
 # Read by the ephemeral stack so the ALB can require the header CloudFront
 # injects. Rotating it is: taint the random_password, apply both stacks.
 resource "aws_secretsmanager_secret" "origin_verify" {

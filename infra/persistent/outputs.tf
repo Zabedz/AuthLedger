@@ -25,3 +25,15 @@ output "origin_verify_secret_arn" {
 output "encryption_key_secret_arn" {
   value = aws_secretsmanager_secret.encryption_key.arn
 }
+
+output "stripe_secret_key_secret_arn" {
+  value = aws_secretsmanager_secret.stripe_secret_key.arn
+}
+
+output "otel_otlp_headers_secret_arn" {
+  value = aws_secretsmanager_secret.otel_otlp_headers.arn
+}
+
+output "sentry_dsn_secret_arn" {
+  value = aws_secretsmanager_secret.sentry_dsn.arn
+}
