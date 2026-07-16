@@ -14,7 +14,7 @@ import {
   type OAuthProvider,
 } from './domain/oauth.js';
 import { loggerOptions, requestContext } from './logging.js';
-import { registerAuthzGuard } from './plugins/authz-guard.js';
+import { registerAuthzGuard, registerDenialAudit } from './plugins/authz-guard.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
 import { registerSentryErrorHandler } from './plugins/sentry.js';
@@ -97,6 +97,7 @@ export async function buildServer(
   }
   await registerSessionAuth(app, config, deps.db);
   registerAuthzGuard(app);
+  registerDenialAudit(app, deps.db);
   await registerOpenapi(app, config);
 
   const routeDeps = { config, db: deps.db, enqueue: deps.enqueue };

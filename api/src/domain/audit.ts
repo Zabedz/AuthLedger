@@ -27,7 +27,8 @@ export type AuditEvent =
   | 'admin_sessions_revoked'
   | 'payment_created'
   | 'payment_refunded'
-  | 'reconciliation_run';
+  | 'reconciliation_run'
+  | 'authz_denied';
 
 export interface AuditEntry {
   event: AuditEvent;
@@ -38,6 +39,10 @@ export interface AuditEntry {
   detail?: Record<string, unknown>;
 }
 
+// A user agent is a caller-supplied header; enough survives for forensics, a
+// header-sized payload does not become row growth.
+const USER_AGENT_MAX = 256;
+
 export async function recordAudit(db: Kysely<DB>, entry: AuditEntry): Promise<void> {
   await db
     .insertInto('audit_events')
@@ -46,7 +51,7 @@ export async function recordAudit(db: Kysely<DB>, entry: AuditEntry): Promise<vo
       user_id: entry.userId ?? null,
       session_id: entry.sessionId ?? null,
       ip: entry.ip ?? null,
-      user_agent: entry.userAgent ?? null,
+      user_agent: entry.userAgent ? entry.userAgent.slice(0, USER_AGENT_MAX) : null,
       detail: JSON.stringify(entry.detail ?? {}),
     })
     .execute();

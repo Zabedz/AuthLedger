@@ -627,3 +627,40 @@ posted, and a re-run skips what already landed without recounting it. The
 deferred pagination watermark (ADR-021) must key off the newest status ok row,
 not the newest row. The Terraform for the schedule lives in the ephemeral
 stack and is proven at the next standup.
+
+## ADR-025: Reconciliation windows on the last successful run (2026-07-16)
+
+Context: ADR-021 shipped reconciliation over a single unwindowed page of 100
+balance transactions and recorded paging and windowing as deferred. With the
+nightly e2e and the daily schedule both writing to one Stripe test account, the
+latest-100 snapshot will eventually stop covering a full day, and a silent
+under-scan is the worst failure mode a reconciliation can have.
+Decision: the fetch windows on the newest status ok run (a failed run does not
+advance the watermark), overlapped by an hour so a transaction created while
+the previous run was in flight is re-read; fee posting is idempotent, so the
+overlap is free. Within the window the fetch pages on has_more, and a window
+still holding more after ten pages fails the run with an explicit error rather
+than under-scanning quietly; the failure lands in the run history like any
+other. The first run ever scans one unwindowed page, which covers the whole
+test history at this volume. The missing-charge check now also compares
+amounts: a settled charge whose ledger posting disagrees with the provider's
+gross is flagged as an amount mismatch, since a wrong amount is worse than a
+missing row and was previously invisible. Whether the comparison is meaningful
+is keyed off the balance transaction's exchange rate, not off currency
+equality: an unconverted settlement must agree with the ledger on both
+currency and gross (a currency disagreement there is itself flagged), while a
+converted one (a usd charge on a gbp account, which is exactly what the test
+account does) arrives as a different currency and can be compared on neither.
+Verifying converted amounts would need the exchange rate and a tolerance;
+deferred until a multi-currency ledger exists to need it.
+Consequences: discrepancy detection is windowed, so a charge that goes missing
+from the ledger after its window has passed stays undetected until a manual
+unwindowed run; that trade is accepted because the ledger is append-only and
+the webhook and reconcile paths are the only writers. Two deferrals remain
+recorded rather than built. The reverse-direction check (a ledger charge with
+no settled provider transaction) needs a settlement-status model to avoid
+flagging every fresh charge between webhook and settlement, so it waits for a
+real need. The unmatched-inbox reprocessor (ADR-018) stays deferred: an
+unmatched event means an intent this system never created, reconciliation now
+flags the settled ones every run, and replaying provider events against a
+payment row that appeared later has no trigger in the current flows.

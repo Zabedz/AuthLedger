@@ -60,7 +60,8 @@ pipeline's OIDC role and Terraform state are controlled by the developer.
 | Privilege escalation via a stale session | Permissions resolve per request from the user's roles, so a revoke lands on the next request | `api/src/plugins/session-auth.ts` |
 | IDOR on a self route (reaching another user's resource) | Self routes scope every query by the caller's id; a cross-user id is a 404, not a leak (test: authz.test.ts) | `api/src/routes/account.ts` |
 | Locking everyone out of role management | The last admin cannot be demoted | `api/src/routes/admin.ts`, `api/src/domain/authz.ts` |
-| Over-broad refunds | `payments.refund_over_ceiling` is a separate permission from `payments.refund` | `api/src/domain/authz.ts`, `api/src/domain/policy.ts` |
+| Over-broad refunds | Refunds require a money role (finance or admin), kept apart from identity administration; the ceiling permission is separate from `payments.refund` so a narrower routine-refund grant can be seeded without schema change (the seeded money roles deliberately hold both) | `api/src/domain/authz.ts`, `api/src/domain/policy.ts`, `api/migrations/0012_finance_role.sql` |
+| Silent permission probing | Every authenticated 403 is audited with actor, method, and route template; floods are summarized past ten a minute and the admin surface is rate limited, so the audit trail cannot be grown or buried by the prober | `api/src/plugins/authz-guard.ts`, `api/src/routes/admin.ts` |
 
 ### Request forgery (CSRF)
 
@@ -114,10 +115,6 @@ account (docs/DATA.md).
 
 - No CSP or Subresource Integrity on the SPA yet; XSS is mitigated by HttpOnly
   cookies and React's default escaping, not by a content policy. Tracked for M8.
-- 403 authorization denials are not yet in the audit log (only grants, revokes,
-  and admin actions are). Noted in SESSION_STATE.
-- Admin currently holds `payments.refund_over_ceiling`; a dedicated finance role
-  that separates it from full admin is a planned follow-up (ADR-018).
 - Rate limits are per-instance in-memory; a multi-instance deploy would want a
   shared store. Single-instance today.
 - The payments browser click-through is not covered by an automated e2e, because

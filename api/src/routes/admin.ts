@@ -29,6 +29,11 @@ export interface AdminDeps extends RouteDeps {
   stripe: Stripe;
 }
 
+// Cookie-authenticated, human-paced surface: sixty a minute is generous for
+// the panel and throttles a scripted permission probe, whose denials would
+// otherwise write audit rows at wire speed.
+const ADMIN_RATE_LIMIT = { max: 60, timeWindow: '1 minute' };
+
 const RECON_PAGE = 50;
 
 const USERS_PAGE = 50;
@@ -48,7 +53,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   app.get(
     '/users',
     {
-      ...authorize('users.read'),
+      ...authorize('users.read', { rateLimit: ADMIN_RATE_LIMIT }),
       schema: { querystring: pageQuery, response: { 200: adminUserListSchema } },
     },
     async (req) => {
@@ -64,7 +69,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   app.get(
     '/audit',
     {
-      ...authorize('audit.read'),
+      ...authorize('audit.read', { rateLimit: ADMIN_RATE_LIMIT }),
       schema: { querystring: pageQuery, response: { 200: auditListSchema } },
     },
     async (req) => {
@@ -75,7 +80,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   app.put(
     '/users/:id/roles/:role',
     {
-      ...authorize('roles.assign'),
+      ...authorize('roles.assign', { rateLimit: ADMIN_RATE_LIMIT }),
       schema: { params: userRoleParams, response: { 200: userRolesSchema, 404: errorReplySchema } },
     },
     async (req, reply) => {
@@ -103,7 +108,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   app.delete(
     '/users/:id/roles/:role',
     {
-      ...authorize('roles.assign'),
+      ...authorize('roles.assign', { rateLimit: ADMIN_RATE_LIMIT }),
       schema: {
         params: userRoleParams,
         response: { 200: userRolesSchema, 409: errorReplySchema },
@@ -131,7 +136,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   app.delete(
     '/users/:id/sessions',
     {
-      ...authorize('sessions.revoke_any'),
+      ...authorize('sessions.revoke_any', { rateLimit: ADMIN_RATE_LIMIT }),
       schema: {
         params: Type.Object({ id: Type.String({ format: 'uuid' }) }),
         response: { 200: Type.Object({ revoked: Type.Integer() }) },
@@ -154,7 +159,10 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   // Ledger balances per account and currency.
   app.get(
     '/ledger',
-    { ...authorize('ledger.view'), schema: { response: { 200: ledgerBalancesSchema } } },
+    {
+      ...authorize('ledger.view', { rateLimit: ADMIN_RATE_LIMIT }),
+      schema: { response: { 200: ledgerBalancesSchema } },
+    },
     async () => ({ balances: await ledgerBalances(db) }),
   );
 
@@ -162,7 +170,10 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
   // from the provider's balance transactions and reports any discrepancy.
   app.post(
     '/reconcile',
-    { ...authorize('ledger.reconcile'), schema: { response: { 200: reconciliationResultSchema } } },
+    {
+      ...authorize('ledger.reconcile', { rateLimit: ADMIN_RATE_LIMIT }),
+      schema: { response: { 200: reconciliationResultSchema } },
+    },
     async (req, reply) => {
       const result = await runAndRecordReconciliation(db, stripe);
       await recordAudit(db, {
@@ -187,7 +198,10 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminDeps> = async (app, { d
 
   app.get(
     '/reconciliations',
-    { ...authorize('ledger.view'), schema: { response: { 200: reconciliationListSchema } } },
+    {
+      ...authorize('ledger.view', { rateLimit: ADMIN_RATE_LIMIT }),
+      schema: { response: { 200: reconciliationListSchema } },
+    },
     async () => {
       const rows = await db
         .selectFrom('reconciliations')

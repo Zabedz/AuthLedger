@@ -1072,6 +1072,12 @@
                                   "enum": [
                                     "auditor"
                                   ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "finance"
+                                  ]
                                 }
                               ]
                             }
@@ -1206,6 +1212,12 @@
                   "enum": [
                     "auditor"
                   ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "finance"
+                  ]
                 }
               ]
             },
@@ -1239,6 +1251,12 @@
                             "type": "string",
                             "enum": [
                               "auditor"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finance"
                             ]
                           }
                         ]
@@ -1294,6 +1312,12 @@
                   "enum": [
                     "auditor"
                   ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "finance"
+                  ]
                 }
               ]
             },
@@ -1327,6 +1351,12 @@
                             "type": "string",
                             "enum": [
                               "auditor"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "finance"
                             ]
                           }
                         ]
@@ -1709,8 +1739,7 @@
                     "type": "integer"
                   },
                   "currency": {
-                    "minLength": 3,
-                    "maxLength": 3,
+                    "pattern": "^[a-z]{3}$",
                     "type": "string"
                   }
                 }

@@ -67,5 +67,10 @@ export function mapBalanceTransaction(txn: Stripe.BalanceTransaction): Settlemen
     amountMinor: txn.amount,
     feeMinor: txn.fee,
     currency: txn.currency,
+    // Set exactly when the provider converted the charge into the account
+    // currency (a numeric exchange rate); an unconverted settlement must agree
+    // with the ledger on both currency and amount, a converted one can be
+    // compared on neither.
+    converted: typeof txn.exchange_rate === 'number',
   };
 }

@@ -103,7 +103,11 @@ export type OAuthProvidersReply = Static<typeof oauthProvidersSchema>;
 
 // The assignable roles, mirroring ROLE_NAMES and the roles seeded in migration
 // 0006. Used to validate the :role path param on the admin grant/revoke routes.
-export const roleNameSchema = Type.Union([Type.Literal('admin'), Type.Literal('auditor')]);
+export const roleNameSchema = Type.Union([
+  Type.Literal('admin'),
+  Type.Literal('auditor'),
+  Type.Literal('finance'),
+]);
 export type RoleNameValue = Static<typeof roleNameSchema>;
 
 export const adminUserSchema = Type.Object({
@@ -154,7 +158,9 @@ export type PaymentList = Static<typeof paymentListSchema>;
 // Amounts are integer minor units; the Stripe minimum is 50 (50 cents).
 export const createPaymentSchema = Type.Object({
   amount_minor: Type.Integer({ minimum: 50, maximum: 99_999_999 }),
-  currency: Type.String({ minLength: 3, maxLength: 3 }),
+  // Lowercase ISO 4217, the canonical form the provider settles in; accepting
+  // 'USD' would store a currency that never matches a settlement's 'usd'.
+  currency: Type.String({ pattern: '^[a-z]{3}$' }),
 });
 export type CreatePaymentBody = Static<typeof createPaymentSchema>;
 

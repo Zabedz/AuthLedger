@@ -97,6 +97,22 @@ describe('permission matrix', () => {
     expect(kill.json().revoked).toBeGreaterThanOrEqual(1);
   });
 
+  it('finance holds the money surface but not identity administration', async () => {
+    const fin = await makeUser('finance@example.com');
+    await assignRole(ctx.db, fin.id, 'finance', null);
+
+    expect([...(await loadPermissions(ctx.db, fin.id))].sort()).toEqual([
+      'ledger.reconcile',
+      'ledger.view',
+      'payments.refund',
+      'payments.refund_over_ceiling',
+      'payments.view_any',
+    ]);
+    expect((await inject('GET', '/api/admin/ledger', fin.cookie)).statusCode).toBe(200);
+    expect((await inject('GET', '/api/admin/users', fin.cookie)).statusCode).toBe(403);
+    expect((await inject('GET', '/api/admin/audit', fin.cookie)).statusCode).toBe(403);
+  });
+
   it('an auditor may read but not write', async () => {
     const auditor = await makeUser('auditor@example.com');
     await assignRole(ctx.db, auditor.id, 'auditor', null);
@@ -110,6 +126,42 @@ describe('permission matrix', () => {
     expect(
       (await inject('DELETE', `/api/admin/users/${target.id}/sessions`, auditor.cookie)).statusCode,
     ).toBe(403);
+  });
+});
+
+describe('authorization denials are audited', () => {
+  it('records an authenticated 403 with the route, and no row for a 401', async () => {
+    await inject('GET', '/api/admin/users'); // anonymous: 401, no attribution
+    const { cookie, id } = await makeUser('denied@example.com');
+    const res = await inject('GET', '/api/admin/users', cookie);
+    expect(res.statusCode).toBe(403);
+
+    const denials = await ctx.db
+      .selectFrom('audit_events')
+      .selectAll()
+      .where('event', '=', 'authz_denied')
+      .execute();
+    expect(denials).toHaveLength(1);
+    expect(denials[0]!.user_id).toBe(id);
+    expect(denials[0]!.detail).toMatchObject({ method: 'GET', route: '/api/admin/users' });
+  });
+
+  it('summarizes a denial flood instead of writing a row per probe', async () => {
+    const { cookie } = await makeUser('prober@example.com');
+    // Past the per-minute allowance plus the summary row, further denials write
+    // nothing, so a scanner cannot grow the table or bury real events. The
+    // admin routes are also rate limited (60/min), so stay under that here.
+    for (let i = 0; i < 20; i++) {
+      expect((await inject('GET', '/api/admin/ledger', cookie)).statusCode).toBe(403);
+    }
+    const denials = await ctx.db
+      .selectFrom('audit_events')
+      .selectAll()
+      .where('event', '=', 'authz_denied')
+      .orderBy('at', 'asc')
+      .execute();
+    expect(denials).toHaveLength(11);
+    expect(denials[10]!.detail).toMatchObject({ suppressed: true });
   });
 });
 

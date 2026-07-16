@@ -12,6 +12,9 @@ export interface Settlement {
   amountMinor: number;
   feeMinor: number;
   currency: string;
+  // True when the provider converted into the account currency, in which case
+  // the settled gross is not comparable to the ledger's presentment gross.
+  converted: boolean;
 }
 
 // A settled amount the provider records that the ledger does not.
@@ -57,20 +60,39 @@ export async function reconcile(
       }
     }
 
-    // A settled charge must have a ledger charge, keyed by the payment intent.
-    // A charge with no intent (a direct Charges-API charge) is not checked.
+    // A settled charge must have a ledger charge, keyed by the payment intent;
+    // a charge with no intent (a direct Charges-API charge) is not checked. An
+    // unconverted settlement must also agree with the ledger on currency and
+    // gross amount. A converted one (a usd charge on a gbp account arrives as
+    // gbp) can be compared on neither, since its gross is a different currency
+    // from the ledger's presentment gross; exchange-rate verification is
+    // deferred (ADR-025).
     if (settlement.intentId) {
-      const entry = await db
+      const posting = await db
         .selectFrom('ledger_entries')
-        .select('id')
-        .where('kind', '=', 'charge')
-        .where('reference', '=', settlement.intentId)
+        .innerJoin('ledger_postings', 'ledger_postings.entry_id', 'ledger_entries.id')
+        .select(['ledger_postings.amount_minor', 'ledger_entries.currency'])
+        .where('ledger_entries.kind', '=', 'charge')
+        .where('ledger_entries.reference', '=', settlement.intentId)
+        .where('ledger_postings.account', '=', 'stripe_receivable')
         .executeTakeFirst();
-      if (!entry) {
+      if (!posting) {
         discrepancies.push({
           reference: settlement.intentId,
           amountMinor: settlement.amountMinor,
           reason: 'settled charge missing from the ledger',
+        });
+      } else if (!settlement.converted && posting.currency !== settlement.currency) {
+        discrepancies.push({
+          reference: settlement.intentId,
+          amountMinor: settlement.amountMinor,
+          reason: `currency mismatch: ledger ${posting.currency}, provider ${settlement.currency}`,
+        });
+      } else if (!settlement.converted && Number(posting.amount_minor) !== settlement.amountMinor) {
+        discrepancies.push({
+          reference: settlement.intentId,
+          amountMinor: settlement.amountMinor,
+          reason: `amount mismatch: ledger ${posting.amount_minor}, provider ${settlement.amountMinor}`,
         });
       }
     }
@@ -98,22 +120,76 @@ async function recordFailedRun(db: Kysely<DB>, err: unknown): Promise<void> {
     .execute();
 }
 
+// A transaction created while the previous run was in flight can postdate that
+// run's page snapshot; overlapping the window by an hour re-reads that edge,
+// and fee posting is idempotent, so the overlap costs nothing.
+const WATERMARK_OVERLAP_S = 3600;
+// A loud bound, far above this project's volume. A window that still has more
+// after this many pages fails the run rather than silently under-scanning.
+const MAX_PAGES = 10;
+
+// The provider transactions to reconcile: windowed on the newest successful
+// run (ADR-025) and paged on has_more. The first run ever scans one unwindowed
+// page, which covers the account's whole test history at this volume.
+async function listBalanceTransactions(
+  db: Kysely<DB>,
+  stripe: Stripe,
+): Promise<Stripe.BalanceTransaction[]> {
+  const lastOk = await db
+    .selectFrom('reconciliations')
+    .select('ran_at')
+    .where('status', '=', 'ok')
+    .orderBy('ran_at', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+
+  const params: Stripe.BalanceTransactionListParams = { limit: 100, expand: ['data.source'] };
+  if (lastOk) {
+    params.created = {
+      gte: Math.floor(lastOk.ran_at.getTime() / 1000) - WATERMARK_OVERLAP_S,
+    };
+  }
+
+  const txns: Stripe.BalanceTransaction[] = [];
+  let page = await stripe.balanceTransactions.list(params);
+  txns.push(...page.data);
+  // The unwindowed first run stops at one page no matter what: paging a large
+  // history into the cap would fail the run, a failed run never sets the
+  // watermark, and every retry would repeat the same full scan. One page seeds
+  // the watermark; older history is a manual concern, as ADR-025 accepts.
+  if (!lastOk) {
+    return txns;
+  }
+  let pages = 1;
+  while (page.has_more) {
+    if (pages >= MAX_PAGES) {
+      throw new Error(
+        `reconciliation window holds more than ${MAX_PAGES * 100} balance transactions; ` +
+          'refusing to under-scan silently',
+      );
+    }
+    page = await stripe.balanceTransactions.list({
+      ...params,
+      starting_after: page.data[page.data.length - 1]!.id,
+    });
+    txns.push(...page.data);
+    pages += 1;
+  }
+  return txns;
+}
+
 // Fetches the provider's balance transactions, projects them to settlements, and
 // reconciles, then records the outcome so the admin view and the logs have the
 // history and a scheduled run leaves a trail. Both the admin route and the
 // scheduled job call this. A failed run is recorded too, then rethrown: silence
-// in the run history must mean "did not run", never "ran and broke". A single
-// page is enough for this project's volume; a higher-volume job would page on
-// has_more and window on the last run's time.
+// in the run history must mean "did not run", never "ran and broke".
 export async function runAndRecordReconciliation(
   db: Kysely<DB>,
   stripe: Stripe,
 ): Promise<ReconciliationRun & { id: string }> {
   try {
-    const page = await stripe.balanceTransactions.list({ limit: 100, expand: ['data.source'] });
-    const settlements = page.data
-      .map(mapBalanceTransaction)
-      .filter((s): s is Settlement => s !== null);
+    const txns = await listBalanceTransactions(db, stripe);
+    const settlements = txns.map(mapBalanceTransaction).filter((s): s is Settlement => s !== null);
     const result = await reconcile(db, settlements);
 
     // The success insert sits inside the try on purpose: if it fails after

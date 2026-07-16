@@ -18,7 +18,7 @@ function getStripe(publishableKey: string): Promise<StripeJs | null> {
   return stripePromise;
 }
 
-const ASSIGNABLE_ROLES: RoleNameValue[] = ['admin', 'auditor'];
+const ASSIGNABLE_ROLES: RoleNameValue[] = ['admin', 'auditor', 'finance'];
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 

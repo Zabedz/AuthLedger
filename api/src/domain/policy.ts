@@ -27,7 +27,9 @@ export interface PaymentResource {
 }
 
 // A refund at or below this moves on the operator's own authority; above it a
-// second capability is required, so a large refund cannot ride a routine grant.
+// second capability is required. The seeded money roles (finance, admin) hold
+// both on purpose; the split exists so a narrower routine-refund grant can be
+// seeded later without touching this rule.
 export const REFUND_CEILING_MINOR = 50_000;
 
 // Initiating a payment has no rule beyond being a signed-in account acting for

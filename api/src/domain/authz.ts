@@ -19,7 +19,7 @@ export const PERMISSION_ACTIONS = [
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
-export const ROLE_NAMES = ['admin', 'auditor'] as const;
+export const ROLE_NAMES = ['admin', 'auditor', 'finance'] as const;
 export type RoleName = (typeof ROLE_NAMES)[number];
 
 // Resolves a user's granted actions from their roles. Called per request so a

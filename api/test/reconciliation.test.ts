@@ -64,6 +64,7 @@ describe('reconciliation', () => {
         amountMinor: 5000,
         feeMinor: 175,
         currency: 'usd',
+        converted: false,
       },
     ];
 
@@ -87,6 +88,7 @@ describe('reconciliation', () => {
         amountMinor: 3000,
         feeMinor: 100,
         currency: 'usd',
+        converted: false,
       },
     ]);
     expect(result.discrepancies).toHaveLength(1);
@@ -102,6 +104,7 @@ describe('reconciliation', () => {
         amountMinor: 2000,
         feeMinor: 90,
         currency: 'usd',
+        converted: false,
       },
     ]);
     expect(clean.discrepancies).toEqual([]);
@@ -136,6 +139,159 @@ describe('reconciliation', () => {
     expect(row.error).toBeNull();
   });
 
+  it('flags a settled charge whose ledger amount disagrees with the provider', async () => {
+    await postCharge(ctx.db, { providerIntentId: 'pi_short', amountMinor: 5000, currency: 'usd' });
+    const result = await reconcile(ctx.db, [
+      {
+        balanceTxnId: 'txn_short',
+        intentId: 'pi_short',
+        amountMinor: 4000,
+        feeMinor: 0,
+        currency: 'usd',
+        converted: false,
+      },
+    ]);
+    expect(result.discrepancies).toHaveLength(1);
+    expect(result.discrepancies[0]!.reason).toContain('amount mismatch');
+    expect(result.discrepancies[0]!.reason).toContain('5000');
+    expect(result.discrepancies[0]!.reason).toContain('4000');
+  });
+
+  it('does not compare amounts across a currency conversion', async () => {
+    // A usd charge on a gbp account settles converted: the provider's gross is
+    // in gbp and tells nothing about the usd ledger amount.
+    await postCharge(ctx.db, { providerIntentId: 'pi_fx', amountMinor: 5000, currency: 'usd' });
+    const result = await reconcile(ctx.db, [
+      {
+        balanceTxnId: 'txn_fx',
+        intentId: 'pi_fx',
+        amountMinor: 3714,
+        feeMinor: 0,
+        currency: 'gbp',
+        converted: true,
+      },
+    ]);
+    expect(result.discrepancies).toEqual([]);
+  });
+
+  it('flags an unconverted settlement whose currency disagrees with the ledger', async () => {
+    await postCharge(ctx.db, { providerIntentId: 'pi_cur', amountMinor: 5000, currency: 'usd' });
+    const result = await reconcile(ctx.db, [
+      {
+        balanceTxnId: 'txn_cur',
+        intentId: 'pi_cur',
+        amountMinor: 5000,
+        feeMinor: 0,
+        currency: 'eur',
+        converted: false,
+      },
+    ]);
+    expect(result.discrepancies).toHaveLength(1);
+    expect(result.discrepancies[0]!.reason).toContain('currency mismatch');
+  });
+
+  it('windows the fetch on the newest successful run, with an hour of overlap', async () => {
+    const ranAt = new Date('2026-07-15T06:11:00Z');
+    await ctx.db
+      .insertInto('reconciliations')
+      .values({
+        ran_at: ranAt,
+        checked: 0,
+        fees_posted_minor: '0',
+        discrepancy_count: 0,
+        discrepancies: JSON.stringify([]),
+      })
+      .execute();
+    // A failed run after it must not advance the watermark.
+    await ctx.db
+      .insertInto('reconciliations')
+      .values({
+        ran_at: new Date('2026-07-16T06:11:00Z'),
+        checked: 0,
+        fees_posted_minor: '0',
+        discrepancy_count: 0,
+        discrepancies: JSON.stringify([]),
+        status: 'failed',
+        error: 'boom',
+      })
+      .execute();
+
+    const captured: Record<string, unknown>[] = [];
+    const spying = {
+      balanceTransactions: {
+        list: async (params: Record<string, unknown>) => {
+          captured.push(params);
+          return { data: [], has_more: false };
+        },
+      },
+    } as unknown as Stripe;
+
+    await runAndRecordReconciliation(ctx.db, spying);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]!.created).toEqual({
+      gte: Math.floor(ranAt.getTime() / 1000) - 3600,
+    });
+  });
+
+  it('stops the unwindowed first run at one page, then pages and caps loudly', async () => {
+    const txn = (id: string, intent: string) => ({
+      id,
+      type: 'charge',
+      amount: 1000,
+      fee: 30,
+      currency: 'usd',
+      source: { payment_intent: intent },
+    });
+
+    // First run ever: no watermark exists, so it must take one page and stop;
+    // paging a large history into the cap would fail the run forever, since a
+    // failed run never seeds the watermark.
+    let firstCalls = 0;
+    const busyFirst = {
+      balanceTransactions: {
+        list: async () => {
+          firstCalls += 1;
+          return { data: [txn('txn_f1', 'pi_f1')], has_more: true };
+        },
+      },
+    } as unknown as Stripe;
+    const first = await runAndRecordReconciliation(ctx.db, busyFirst);
+    expect(firstCalls).toBe(1);
+    expect(first.checked).toBe(1);
+
+    // With the watermark seeded, a windowed run follows has_more to the end.
+    const pages = [
+      { data: [txn('txn_p1', 'pi_p1')], has_more: true },
+      { data: [txn('txn_p2', 'pi_p2')], has_more: false },
+    ];
+    let calls = 0;
+    const paged = {
+      balanceTransactions: { list: async () => pages[Math.min(calls++, 1)] },
+    } as unknown as Stripe;
+    const run = await runAndRecordReconciliation(ctx.db, paged);
+    expect(calls).toBe(2);
+    expect(run.checked).toBe(2);
+    expect(run.feesPostedMinor).toBe(60);
+
+    // A windowed run that would exceed the cap fails loudly and is recorded.
+    let endlessCalls = 0;
+    const endless = {
+      balanceTransactions: {
+        list: async () => {
+          endlessCalls += 1;
+          return { data: [txn(`txn_e${endlessCalls}`, 'pi_e')], has_more: true };
+        },
+      },
+    } as unknown as Stripe;
+    await expect(runAndRecordReconciliation(ctx.db, endless)).rejects.toThrow(/under-scan/);
+    const failed = await ctx.db
+      .selectFrom('reconciliations')
+      .select('status')
+      .orderBy('ran_at', 'desc')
+      .executeTakeFirstOrThrow();
+    expect(failed.status).toBe('failed');
+  });
+
   it('keeps the original cause when recording the failure also fails', async () => {
     const failing = {
       balanceTransactions: {
@@ -156,8 +312,11 @@ describe('reconciliation', () => {
       () => null,
       (err: unknown) => err,
     );
+    // Both causes ride along, the original first; with the database down the
+    // original is the watermark read, which fails before Stripe is reached.
     expect(rejection).toBeInstanceOf(AggregateError);
-    expect((rejection as AggregateError).errors[0]).toMatchObject({ message: 'stripe is down' });
+    expect((rejection as AggregateError).errors).toHaveLength(2);
+    expect((rejection as AggregateError).message).toContain('could not be recorded');
     await deadPool.end();
   });
 });
