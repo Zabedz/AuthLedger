@@ -7,7 +7,7 @@ import { decrypt, encrypt } from './encryption.js';
 const cryptoPlugin = new NobleCryptoPlugin();
 const base32Plugin = new ScureBase32Plugin();
 
-const ISSUER = 'authledger';
+const ISSUER = 'AuthLedger';
 // Accept the adjacent 30-second step on each side for clock drift.
 const EPOCH_TOLERANCE_SECONDS = 30;
 const RECOVERY_CODE_COUNT = 10;

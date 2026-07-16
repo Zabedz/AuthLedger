@@ -640,7 +640,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <main style={page}>
-        <h1>authledger</h1>
+        <h1>AuthLedger</h1>
         <Router />
       </main>
     </QueryClientProvider>

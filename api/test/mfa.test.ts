@@ -11,7 +11,7 @@ const crypto = new NobleCryptoPlugin();
 const base32 = new ScureBase32Plugin();
 
 async function totpFor(secret: string): Promise<string> {
-  return new TOTP({ secret, issuer: 'authledger', crypto, base32 }).generate();
+  return new TOTP({ secret, issuer: 'AuthLedger', crypto, base32 }).generate();
 }
 
 beforeEach(async () => {
@@ -69,7 +69,7 @@ describe('MFA enrollment', () => {
     const cookie = await registerAndLogin();
     const setup = await post('/api/auth/mfa/setup', undefined, { cookie });
     expect(setup.statusCode).toBe(200);
-    expect(setup.json().otpauth_uri).toMatch(/^otpauth:\/\/totp\/authledger/);
+    expect(setup.json().otpauth_uri).toMatch(/^otpauth:\/\/totp\/AuthLedger/);
 
     const secret = setup.json().secret;
     const row = await ctx.db

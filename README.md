@@ -1,10 +1,15 @@
-# authledger
+# AuthLedger
 
 Identity and payments in one production-shaped system: a hand-built
 authentication and authorization layer, and a Stripe-integrated payments domain
 with a double-entry ledger and reconciliation. The two domains intersect on
 purpose. Authorization decides who may initiate, view, refund, or reconcile a
 payment, so the money endpoints are born gated.
+
+![The journey: register, verify by email, enroll and pass MFA](docs/media/journey.gif)
+
+A full screen-by-screen walkthrough with images is in
+[docs/TOUR.md](docs/TOUR.md).
 
 Nothing here is scaffolding output. The auth primitives, the RBAC engine, the
 webhook inbox, and the ledger are written by hand so the design decisions are
@@ -144,6 +149,8 @@ Then sign in, enter an amount, and pay with Stripe's test card
 `4242 4242 4242 4242`. The webhook drives the payment to succeeded and posts the
 charge to the ledger; a refund posts a reversing entry. No real money moves.
 
+![Stripe Payment Element in the checkout](docs/media/10-payment-element.png)
+
 ## Deploying
 
 `infra/` holds two Terraform stacks split by lifecycle: a persistent stack (ECR,
@@ -159,6 +166,9 @@ and every table's row count.
 
 ## Documentation
 
+- [docs/TOUR.md](docs/TOUR.md) - the app screen by screen, with images.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) - the runbook: run, test, observe,
+  deploy, recover.
 - [docs/PLAN.md](docs/PLAN.md) - the milestone plan, M0 through M8.
 - [docs/DECISIONS.md](docs/DECISIONS.md) - architecture decision records.
 - [docs/THREATMODEL.md](docs/THREATMODEL.md) - assets, trust boundaries, and

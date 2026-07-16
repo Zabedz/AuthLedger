@@ -30,37 +30,37 @@ export function composeEmail(kind: EmailKind, to: string, ctx: EmailContext): Em
     case 'verify_email':
       return {
         to,
-        subject: 'Verify your authledger email',
+        subject: 'Verify your AuthLedger email',
         text: `Confirm this address to finish setting up your account:\n\n${verifyLink(ctx.appOrigin, ctx.token!)}\n\nThe link expires in 24 hours. If you did not sign up, ignore this email.`,
       };
     case 'reset_password':
       return {
         to,
-        subject: 'Reset your authledger password',
+        subject: 'Reset your AuthLedger password',
         text: `Reset your password with this link:\n\n${resetLink(ctx.appOrigin, ctx.token!)}\n\nThe link expires in 1 hour and can be used once. If you did not ask for a reset, ignore this email.`,
       };
     case 'password_changed':
       return {
         to,
-        subject: 'Your authledger password changed',
+        subject: 'Your AuthLedger password changed',
         text: `Your password was just changed and all other sessions were signed out. If this was not you, reset your password immediately at ${ctx.appOrigin}.`,
       };
     case 'new_device_login':
       return {
         to,
-        subject: 'New sign-in to your authledger account',
+        subject: 'New sign-in to your AuthLedger account',
         text: `A new device signed in to your account. If this was not you, change your password at ${ctx.appOrigin}.`,
       };
     case 'account_locked':
       return {
         to,
-        subject: 'Your authledger account was locked',
+        subject: 'Your AuthLedger account was locked',
         text: `Too many failed sign-in attempts locked your account for a short time. If this was not you, reset your password once the lock clears at ${ctx.appOrigin}.`,
       };
     case 'account_deleted':
       return {
         to,
-        subject: 'Your authledger account was deleted',
+        subject: 'Your AuthLedger account was deleted',
         text: `Your account and personal data have been removed. If you did not request this, contact support.`,
       };
     case 'mfa_enabled':

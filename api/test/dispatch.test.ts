@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createPool, createDb } from '../src/db/client.js';
 import type { DB } from '../src/db/types.js';
 import { DAILY_EMAIL_CAP, deliverEmail, type DeliveryJob } from '../src/domain/dispatch.js';
+import { composeEmail, type EmailKind } from '../src/domain/emails.js';
 import type { EmailMessage, Mailer } from '../src/domain/mailer.js';
 import { testDatabaseUrl } from './test-db.js';
 import { truncateAll } from './helpers.js';
@@ -90,5 +91,27 @@ describe('daily email cap', () => {
       .where('user_id', '=', userId)
       .executeTakeFirstOrThrow();
     expect(Number(count)).toBe(DAILY_EMAIL_CAP);
+  });
+});
+
+describe('email branding', () => {
+  it('every subject that names the product spells it AuthLedger', () => {
+    const kinds: EmailKind[] = [
+      'verify_email',
+      'reset_password',
+      'password_changed',
+      'new_device_login',
+      'account_locked',
+      'account_deleted',
+      'mfa_enabled',
+      'mfa_disabled',
+    ];
+    for (const kind of kinds) {
+      const { subject } = composeEmail(kind, 'someone@example.com', {
+        appOrigin: 'http://localhost:5173',
+        token: 'token-fixture',
+      });
+      expect(subject, kind).not.toMatch(/authledger/);
+    }
   });
 });

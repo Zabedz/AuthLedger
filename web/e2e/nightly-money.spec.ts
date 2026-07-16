@@ -19,7 +19,7 @@ const crypto = new NobleCryptoPlugin();
 const base32 = new ScureBase32Plugin();
 
 async function totp(secret: string): Promise<string> {
-  return new TOTP({ secret, issuer: 'authledger', crypto, base32 }).generate();
+  return new TOTP({ secret, issuer: 'AuthLedger', crypto, base32 }).generate();
 }
 
 async function waitForVerifyLink(email: string): Promise<string> {
