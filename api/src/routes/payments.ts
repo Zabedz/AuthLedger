@@ -24,6 +24,7 @@ import {
 import { canRefundPayment, canViewPayment } from '../domain/policy.js';
 import { authorize } from '../plugins/authz-guard.js';
 import { requireAuth } from '../plugins/session-auth.js';
+import { reportServerError } from '../sentry.js';
 import { requestContextOf, type RouteDeps } from './deps.js';
 
 export interface PaymentDeps extends RouteDeps {
@@ -105,10 +106,12 @@ export const paymentRoutes: FastifyPluginAsyncTypebox<PaymentDeps> = async (app,
         });
       } catch (err) {
         req.log.error({ err }, 'payment intent creation failed');
+        reportServerError(err, req);
         return reply.code(502).send({ error: 'could not create the payment' });
       }
       if (!intent.client_secret) {
         req.log.error({ intentId: intent.id }, 'payment intent has no client secret');
+        reportServerError(new Error('payment intent has no client secret'), req);
         return reply.code(502).send({ error: 'could not create the payment' });
       }
 
@@ -227,6 +230,7 @@ export const paymentRoutes: FastifyPluginAsyncTypebox<PaymentDeps> = async (app,
         );
       } catch (err) {
         req.log.error({ err, paymentId: payment.view.id }, 'refund failed');
+        reportServerError(err, req);
         return reply.code(502).send({ error: 'could not refund the payment' });
       }
 

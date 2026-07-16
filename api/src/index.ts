@@ -7,9 +7,12 @@ import { ensureAdminRole } from './domain/authz.js';
 import { createSmtpMailer } from './domain/mailer.js';
 import { createJobRunner } from './jobs/queue.js';
 import { buildServer } from './server.js';
+import { startSentry, stopSentry } from './sentry.js';
 import { startTracing, stopTracing } from './tracing.js';
 
 const config = loadConfig();
+// Before anything else, so an error during startup is still reported.
+const sentryActive = startSentry(config);
 const tracingActive = startTracing(config);
 const pool = createPool(config.databaseUrl);
 const db = createDb(pool);
@@ -33,6 +36,9 @@ if (tracingActive) {
     { console: config.tracing.consoleExporter, otlp: config.tracing.otlpEndpoint !== undefined },
     'tracing enabled',
   );
+}
+if (sentryActive) {
+  app.log.info('error tracking enabled');
 }
 
 // Started before listen so no request is served before the queue accepts work.
@@ -65,6 +71,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
       .then(() => jobs.stop())
       .then(() => pool.end())
       .then(() => stopTracing())
+      .then(() => stopSentry())
       .then(() => process.exit(0))
       .catch((err: unknown) => {
         app.log.error({ err }, 'shutdown failed');

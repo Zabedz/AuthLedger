@@ -17,6 +17,7 @@ import { loggerOptions, requestContext } from './logging.js';
 import { registerAuthzGuard } from './plugins/authz-guard.js';
 import { registerOpenapi } from './plugins/openapi.js';
 import { registerOriginCheck } from './plugins/origin-check.js';
+import { registerSentryErrorHandler } from './plugins/sentry.js';
 import { registerSessionAuth } from './plugins/session-auth.js';
 import { registerHttpTracing } from './plugins/tracing.js';
 import { adminRoutes } from './routes/admin.js';
@@ -28,6 +29,7 @@ import { oauthRoutes } from './routes/oauth.js';
 import { paymentRoutes } from './routes/payments.js';
 import { stripeWebhookRoutes } from './routes/stripe-webhooks.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { sentryEnabled } from './sentry.js';
 import { tracingEnabled } from './tracing.js';
 
 export interface ServerDeps {
@@ -80,6 +82,12 @@ export async function buildServer(
   // whether startTracing registers a provider, so the two never disagree.
   if (tracingEnabled(config)) {
     registerHttpTracing(app);
+  }
+
+  // Report server errors to Sentry when a DSN is set (startSentry initializes the
+  // client in the entrypoint); the handler filters to 5xx.
+  if (sentryEnabled(config)) {
+    registerSentryErrorHandler(app);
   }
 
   app.addHook('onSend', async (req, reply) => {

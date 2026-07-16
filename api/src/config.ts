@@ -36,6 +36,9 @@ export interface Config {
   stripeWebhookSecret: string | undefined;
   // The publishable key (pk_test_...); public, served to the SPA.
   stripePublishableKey: string | undefined;
+  // Sentry error tracking DSN; error reporting is off when unset. The region is
+  // read from the DSN.
+  sentryDsn: string | undefined;
   // When set, the account with this email is granted the admin role at boot.
   adminEmail: string | undefined;
   // Off only for the browser e2e, where many journeys share one server and one
@@ -153,6 +156,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   // other topic. Unset in dev and CI, where the topic does not exist.
   const sesSnsTopicArn = env.SES_SNS_TOPIC_ARN || undefined;
 
+  const sentryDsn = env.SENTRY_DSN || undefined;
   const adminEmail = env.ADMIN_EMAIL || undefined;
   const rateLimitEnabled = env.DISABLE_RATE_LIMIT !== 'true';
 
@@ -177,6 +181,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     stripeSecretKey,
     stripeWebhookSecret,
     stripePublishableKey,
+    sentryDsn,
     adminEmail,
     rateLimitEnabled,
   };

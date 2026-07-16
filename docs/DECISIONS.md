@@ -543,3 +543,45 @@ be instrumented on purpose, which is the cost of not patching modules. The OTLP
 exporter reads the standard OTEL_ environment variables (endpoint, headers) rather
 than taking wiring in code, so pointing at Grafana Cloud or any collector is
 configuration, and the collector account itself is the remaining gated piece.
+
+## ADR-023: Sentry for error tracking, kept apart from tracing (2026-07-14)
+
+Context: M8 wants error tracking (grouping, alerting, stack context) that AWS has
+no first-class equivalent for. Sentry fills that, but its Node SDK is built on
+OpenTelemetry and, left to its defaults, registers its own tracer provider and
+patches http, fetch, and framework modules. The service already has an
+OpenTelemetry provider that ships traces to a collector (ADR-022), so an
+unconstrained Sentry.init would fight it.
+Decision: run Sentry as an error reporter only, fully apart from the tracing
+provider. startSentry initializes the client only when SENTRY_DSN is set, with
+tracesSampleRate 0 (traces are OpenTelemetry's job), skipOpenTelemetrySetup so it
+never registers a second provider, defaultIntegrations off with only the
+event-shaping integrations kept (inbound filters, linked errors, dedupe, context
+lines, and the uncaught-exception and unhandled-rejection handlers), so nothing
+patches a module or opens a span. The unhandled-rejection handler runs in strict
+mode, so a stray rejection still crashes the process (Node's default) after the
+event is captured, rather than being downgraded to a warning that leaves the
+process running in an unknown state. A hand-written Fastify onError hook (in
+plugins/sentry) reports thrown failures worth reporting: it filters on the
+error's own status (a thrown error with no status is an unexpected 500, a 4xx is
+a client error and skipped), because the reply status is not yet set when onError
+runs, which is also why Sentry's own default filter would misjudge it. onError
+only fires for a thrown or rejected error, not a returned reply, so a catch site
+that turns a failure into reply.code(5xx) (the Stripe create and refund paths in
+routes/payments) calls reportServerError so those, the most page-worthy errors in
+the app, are not silently dropped. beforeSend stamps the active OpenTelemetry
+trace_id and span_id onto the event, so an issue links back to its trace.
+sendDefaultPii is off and both capture paths attach only the method and route
+template, so no header, cookie, query, or body reaches Sentry.
+Consequences: with no DSN, the client is never initialized and the onError hook
+is never registered, so tests and the OpenAPI generator are untouched and the
+default path is unchanged; sentryEnabled is the one predicate both the bootstrap
+and the registration read, so they cannot drift. Errors and traces stay in
+separate systems joined only by trace_id, which keeps each backend swappable (the
+reason for not adopting AWS X-Ray or CloudWatch here is recorded in
+docs/RESEARCH.md: the app is mostly local and only briefly on AWS, so a backend
+decoupled from the AWS runtime fits). Capture calls (the onError hook and
+reportServerError) stay at the composition-root, plugin, and route edge; they do
+not go into the db-in/data-out domain, which keeps to the same rule ADR-022 set
+for the tracing facade. Turning on release health or performance later is
+re-enabling the dropped integrations behind the same DSN.

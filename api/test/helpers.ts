@@ -32,6 +32,7 @@ export const testConfig: Config = {
   stripeSecretKey: 'sk_test_fixture',
   stripeWebhookSecret: 'whsec_test_secret',
   stripePublishableKey: 'pk_test_fixture',
+  sentryDsn: undefined,
   adminEmail: undefined,
   rateLimitEnabled: true,
 };
