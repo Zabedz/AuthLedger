@@ -5,7 +5,12 @@ describe('password hashing', () => {
   it('produces argon2id hashes with the pinned parameters', async () => {
     const hash = await hashPassword('a-perfectly-fine-password');
     // OWASP-aligned parameters; a dependency bump must not weaken them.
-    expect(hash).toMatch(/^\$argon2id\$v=19\$m=65536,t=3,p=4\$/);
+    // argon2 encodes them in its own order (0.44 emits m,t,p and 0.45 m,p,t),
+    // so compare the set rather than the literal prefix.
+    const [, variant, version, params = ''] = hash.split('$');
+    expect(variant).toBe('argon2id');
+    expect(version).toBe('v=19');
+    expect(params.split(',').sort()).toEqual(['m=65536', 'p=4', 't=3']);
   });
 
   it('verifies a correct password and rejects a wrong one', async () => {
