@@ -12,9 +12,9 @@ export interface RequestContext {
 // below injects it as req_id on every line written inside a request.
 export const requestContext = new AsyncLocalStorage<RequestContext>();
 
-// Typed as pino options rather than Fastify's logger union, so the one-off jobs
-// can build the same logger (base fields, redaction, trace ids) with pino()
-// directly; Fastify accepts the same object.
+// Typed as pino options so the one-off jobs can build the same logger (base
+// fields, redaction, trace ids) with pino() directly; Fastify accepts the same
+// object.
 export function loggerOptions(config: Config): LoggerOptions {
   return {
     level: config.logLevel,

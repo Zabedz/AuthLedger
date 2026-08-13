@@ -10,8 +10,8 @@ import { applyLedgerEvent, postCharge } from '../domain/ledger.js';
 import { mapLedgerEvent, mapStripeEvent } from '../domain/stripe-mapping.js';
 
 // constructEvent is HMAC over the webhook secret and never calls the API, so the
-// client needs no live key when only verifying webhooks. Named so it reads as a
-// sentinel, not a credential.
+// client needs no live key when only verifying webhooks. Named so it reads as
+// a sentinel.
 const NO_API_KEY = 'stripe-api-key-unused-for-webhook-verification';
 
 export interface StripeWebhookDeps {

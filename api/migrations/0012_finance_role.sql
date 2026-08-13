@@ -1,4 +1,4 @@
--- Splits money operations out of admin (ADR-018 follow-up): finance handles
+-- Splits money operations out of admin: finance handles
 -- payments and the ledger, including refunds past the policy ceiling, without
 -- inheriting identity administration. Admin keeps every permission.
 INSERT INTO roles (name, description) VALUES

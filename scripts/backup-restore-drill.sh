@@ -32,7 +32,7 @@ dc psql -U "$DB_USER" -d "$CHECK_DB" -q -v ON_ERROR_STOP=1 <"$WORK/backup.sql" >
 
 echo "==> Comparing schema"
 # pg_dump 18 wraps each dump in a random \restrict/\unrestrict token; drop it so
-# the comparison sees only real schema, not the per-run nonce.
+# the comparison sees only real schema.
 schema_dump() {
   dc pg_dump -U "$DB_USER" -d "$1" --schema-only | grep -vE '^\\(un)?restrict '
 }

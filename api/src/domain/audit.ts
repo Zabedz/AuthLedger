@@ -39,8 +39,8 @@ export interface AuditEntry {
   detail?: Record<string, unknown>;
 }
 
-// A user agent is a caller-supplied header; enough survives for forensics, a
-// header-sized payload does not become row growth.
+// A user agent is a caller-supplied header; the cap keeps enough for forensics
+// and bounds the row size.
 const USER_AGENT_MAX = 256;
 
 export async function recordAudit(db: Kysely<DB>, entry: AuditEntry): Promise<void> {

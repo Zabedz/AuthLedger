@@ -330,7 +330,8 @@ describe('payment create and refund', () => {
       IK('c-1'),
     );
     expect(first.statusCode).toBe(200);
-    // A second partial pushes the cumulative past the ceiling: denied without elevation.
+    // A second partial pushes the cumulative past the ceiling: denied
+    // without payments.refund_over_ceiling.
     const second = await post(
       `/api/payments/${id}/refund`,
       limited.cookie,

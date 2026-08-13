@@ -42,9 +42,8 @@ function isExempt(url: string): boolean {
 }
 
 // A user producing more denials than this per minute is a scanner, not a UI
-// gap; the flood is summarized in one row instead of written row by row, so a
-// prober cannot grow the table without bound or bury real events behind its
-// own noise.
+// gap; the flood is summarized in one row, so a prober cannot grow the table
+// without bound or bury real events behind its own noise.
 const DENIALS_AUDITED_PER_MINUTE = 10;
 // The suppression map cannot grow past this many distinct denied users; the
 // reset just re-audits a few rows, so correctness does not depend on it.

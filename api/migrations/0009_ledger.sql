@@ -1,8 +1,8 @@
 -- Double-entry ledger. Every money movement is a balanced journal entry: its
 -- postings sum to zero, enforced by the database, not the application. The
--- ledger is append-only; a mistake is corrected with a reversing entry, never
--- an UPDATE or DELETE. Amounts are signed integer minor units: a debit is
--- positive, a credit negative.
+-- ledger is append-only; a mistake is corrected with a reversing entry.
+-- Amounts are signed integer minor units: a debit is positive, a credit
+-- negative.
 
 -- The chart of accounts (reference data). Normal balance is by kind: assets and
 -- expenses are debit-normal, income is credit-normal.

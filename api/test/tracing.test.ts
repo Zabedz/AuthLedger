@@ -11,8 +11,8 @@ import { makeTestServer, truncateAll, type TestContext } from './helpers.js';
 const WEBHOOK_SECRET = 'whsec_test_secret';
 const stripe = new Stripe('sk_test_dummy');
 
-// Capture spans in memory instead of exporting them, so the assertions read the
-// same span tree an exporter would ship.
+// Capture spans in memory, so the assertions read the same span tree an
+// exporter would ship.
 const exporter = new InMemorySpanExporter();
 const provider = new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
 

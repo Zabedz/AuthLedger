@@ -73,8 +73,8 @@ export const mfaRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
     },
   );
 
-  // Disabling requires a current TOTP or a recovery code, so a walk-up at an
-  // unlocked session cannot silently remove the second factor, while a user
+  // Disabling requires a current TOTP or a recovery code, so a walk-up at a
+  // signed-in machine cannot silently remove the second factor, while a user
   // who lost their authenticator can still turn it off with a recovery code.
   app.post(
     '/disable',

@@ -128,7 +128,7 @@ export function tokenFromEmail(message: EmailMessage): string {
 }
 
 // State-changing requests must pass the origin check; this wraps inject with
-// the app's own origin so tests opt OUT of it explicitly instead of in.
+// the app's own origin so tests opt out of it explicitly.
 export function withOrigin(opts: InjectOptions): InjectOptions {
   return { ...opts, headers: { origin: testConfig.appOrigin, ...opts.headers } };
 }

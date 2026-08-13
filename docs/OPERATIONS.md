@@ -48,16 +48,16 @@ red scheduled run.
 ## Scheduled reconciliation
 
 In the deployed environment, EventBridge Scheduler starts the
-`authledger-reconcile` task daily (same image, command override, ADR-024).
+`authledger-reconcile` task daily (same image, command override).
 Every run, scheduled or via `POST /api/admin/reconcile`, lands in the
 `reconciliations` history with status ok or failed; a failed run also reports
 to Sentry tagged `job=reconcile`. Run it locally with
 `npm run job:reconcile -w api`. Fetches are windowed on the last successful
-run and fail loudly rather than under-scan (ADR-025).
+run and fail loudly rather than under-scan.
 
 ## Observability
 
-Tracing and error reporting are off unless configured (ADR-022, ADR-023):
+Tracing and error reporting are off unless configured:
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_EXPORTER_OTLP_HEADERS`: OTLP/HTTP
   traces (Grafana Cloud Tempo in this setup; service `authledger-api`). Every
@@ -92,7 +92,7 @@ arrive. Local dev has the full feature set via Mailpit.
 ## Recovery
 
 - Application rollback: revert the commit, dispatch `update`; migrations are
-  expand/contract and up-only (ADR-003), and the ECS circuit breaker rolls a
+  expand/contract and up-only, and the ECS circuit breaker rolls a
   failing service update back automatically.
 - Database: production uses RDS automated snapshots; `make backup-drill`
   rehearses the logical dump/restore path locally.

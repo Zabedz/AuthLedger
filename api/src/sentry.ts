@@ -23,14 +23,13 @@ export function startSentry(config: Config): boolean {
     tracesSampleRate: 0,
     skipOpenTelemetrySetup: true,
     // No request headers, cookies, or client IP on events, the same discipline
-    // the log redaction follows (ADR-004).
+    // the log redaction follows.
     sendDefaultPii: false,
     // Error tracking only: drop the default auto-instrumentation so Sentry never
     // patches modules or opens spans (traces are the OpenTelemetry provider's
     // job), and keep just the integrations that shape an error event. The
     // unhandled-rejection handler runs in strict mode so a stray rejection still
-    // crashes the process (Node's default) after the event is captured, rather
-    // than leaving it running in an unknown state.
+    // crashes the process (Node's default) after the event is captured.
     defaultIntegrations: false,
     integrations: [
       Sentry.inboundFiltersIntegration(),

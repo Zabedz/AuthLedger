@@ -23,7 +23,7 @@ token also rides, in plaintext, inside the queued email job that carries its
 link; that row is deleted within minutes of the email being sent (short
 pg-boss retention on the send-email queue), and the token is single-use and
 short-lived (1 hour for reset, 24 hours for verification). Authorization
-headers, cookies, and set-cookie are redacted from logs (ADR-004).
+headers, cookies, and set-cookie are redacted from logs.
 
 ## Retention
 

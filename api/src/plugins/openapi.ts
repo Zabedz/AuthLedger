@@ -11,7 +11,7 @@ export async function registerOpenapi(app: FastifyInstance, config: Config): Pro
       openapi: '3.1.0',
       info: {
         title: 'AuthLedger API',
-        description: 'Identity and payments: hand-built auth/authz and a double-entry ledger.',
+        description: 'Identity and payments: auth/authz and a double-entry ledger.',
         version: '0.0.0',
       },
     },

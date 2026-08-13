@@ -1,23 +1,23 @@
 # Phase 0: stack research and decisions
 
 Date: 2026-07-12. Every price, free-tier limit, version number, and support
-status below was checked against the linked page on that date rather than
-recalled. Where a figure is likely to move soon (survey data, monthly API
-releases, LTS transitions), the section says so.
+status below was checked against the linked page on that date. Where a figure
+is likely to move soon (survey data, monthly API releases, LTS transitions),
+the section says so.
 
-The project is a full-stack, production-shaped application with two domains
-that intersect on purpose: a hand-built identity layer (authentication and
-authorization) and a payments integration with a double-entry ledger and
-reconciliation. It is built by one developer, in public, on a near-zero budget,
-with AWS credits available for a demo. Decisions optimize for
-production-realism, job-market signal, and defensibility under review.
+The project is a full-stack, production-shaped application with two domains that
+intersect on purpose: an identity layer (authentication and authorization) and a
+payments integration with a double-entry ledger and reconciliation. It is built
+in public, on a near-zero budget, with AWS credits available for a demo.
+Decisions optimize for production-realism, job-market signal, and defensibility
+under review.
 
 ## Decision matrix
 
 | Area | Decision | Runner-up | Deciding factor |
 |---|---|---|---|
 | Backend | TypeScript on Node.js 24 LTS, Fastify v5 | Go with chi | Posting volume for TS/JS, one language across the stack, primitives stay visible |
-| Auth | Hand-rolled on argon2, otplib, openid-client; server-side sessions in Postgres; RBAC plus a policy module | better-auth as schedule fallback | The auth domain is half the portfolio; outsourcing it deletes the evidence |
+| Auth | Built on argon2, otplib, openid-client; server-side sessions in Postgres; RBAC plus a policy module | better-auth as schedule fallback | The auth domain is half the portfolio; outsourcing it deletes the evidence |
 | Payments | Stripe PaymentIntents, pinned API version, sandboxes, CLI webhook forwarding | Adyen | Only sandbox that exercises disputes, refunds, and replayed webhooks without friction |
 | Database | Postgres 18; Kysely with kysely-codegen; SQL-first migrations via node-pg-migrate | Drizzle | Ledger invariants live in hand-written DDL; queries stay recognizable as SQL |
 | Frontend | Vite, React, TanStack Router and Query; SPA, no BFF | React Router 8 framework mode | Single auth enforcement point; complexity budget stays on the backend |
@@ -40,7 +40,7 @@ from a single origin.
 
 ## Backend stack
 
-The stack has to carry hand-built auth (password hashing, TOTP, OAuth login,
+The stack has to carry the auth work (password hashing, TOTP, OAuth login,
 session and token lifecycle) and a payments integration (provider SDK, webhook
 verification, a double-entry ledger), and it has to read well when a senior
 engineer opens the repo. Job-market signal carries the most weight, so that
@@ -76,8 +76,8 @@ also the look most associated with tutorial output.
 Fastify, current at [v5.10.0](https://github.com/fastify/fastify/releases), is
 the opposite trade. It gives routing, JSON-schema validation on every request
 and reply, lifecycle hooks, and first-party plugins for rate limiting, cookies,
-and CSRF, while sessions, RBAC, audit logging, and the ledger stay hand-written
-and visible. It is also the engine NestJS itself can run on, so the choice
+and CSRF, while sessions, RBAC, audit logging, and the ledger stay explicit in
+application code. It is also the engine NestJS itself can run on, so the choice
 reads as taking the primitives without the ceremony.
 
 [Hono](https://hono.dev/) (4.12.x) is the multi-runtime, edge-first option. For
@@ -99,7 +99,7 @@ Go with chi is the strongest alternative and the code would read very well to a
 senior reviewer: int64 minor units, `x/crypto/argon2`, explicit error handling,
 one static binary. Go is current at [1.26.x](https://go.dev/doc/devel/release).
 It loses on the top-weighted criterion, posting volume, and it forces a second
-language for the front end, which splits a solo developer's effort.
+language for the front end, which splits the effort across two ecosystems.
 
 FastAPI has real momentum (up 5 points year over year in the survey) but
 remains [pre-1.0 at 0.139.0](https://github.com/fastapi/fastapi/releases), and
@@ -123,15 +123,15 @@ stripe-node ships full TypeScript types. Auth primitives on Node are mature:
 implementation, [otplib](https://github.com/yeojz/otplib) implements RFC 6238
 TOTP, and [openid-client](https://github.com/panva/openid-client) is an OpenID
 Certified client for the OAuth login flows. Nothing has to be imported
-wholesale from an auth framework, which is the point.
+wholesale from an auth framework.
 
 ### Decision
 
 TypeScript on Node.js 24 LTS with Fastify v5, strict tsconfig, schema
 validation at every boundary. Accepted tradeoffs: Fastify's name recognition in
 job ads is far below NestJS and Spring, so the market signal rides on
-TypeScript and Node rather than the framework name; more wiring falls on the
-author, which is deliberate here; and JavaScript number semantics demand
+TypeScript and Node; more wiring falls on the author, which is deliberate
+here; and JavaScript number semantics demand
 discipline for money, so the ledger stores BIGINT in Postgres and the app
 treats minor units as integers checked against Number.MAX_SAFE_INTEGER at the
 boundary, where Go's int64 would have made that free.
@@ -181,7 +181,7 @@ the payments-authorization intersection stays custom code regardless.
 current default for TypeScript teams that want auth in-process without writing
 the flows: 1.6.23 is the latest stable (published late June 2026) with a 1.7.0
 release candidate out the first week of July, and it has plugins for 2FA and
-organizations. It is the fallback if the hand-rolled layer slips the schedule.
+organizations. It is the fallback if the in-house layer slips the schedule.
 It is not the pick because it owns the session schema and the flow logic, so
 the repo's interesting diff would again read as configuration.
 
@@ -196,10 +196,10 @@ saved. Every flow in scope is documented:
 names argon2id as the first-choice hash, TOTP is RFC 6238, social login is
 OAuth 2.0 authorization code with PKCE.
 
-The red-flag line is precise. Red flag: inventing primitives, meaning your own
-hash construction, your own token format, your own crypto, or passwords under
-unsalted fast hashes. Green flag: composing maintained primitives into
-documented flows. Concretely: [argon2](https://www.npmjs.com/package/argon2)
+Red flag: inventing primitives, meaning your own hash construction, your own
+token format, your own crypto, or passwords under unsalted fast hashes. Green
+flag: composing maintained primitives into documented flows. Concretely:
+[argon2](https://www.npmjs.com/package/argon2)
 (node binding, v0.44.0; last release August 2025, a stable small-surface
 library rather than a fast-moving one) for hashing, crypto.randomBytes for
 opaque tokens with only hashes stored server-side,
@@ -209,27 +209,27 @@ published April 2026, panva's certified OpenID RP library) for Google and
 GitHub login. Arctic is the lighter alternative but has not published since May
 2025, so openid-client is the safer dependency. Sessions are opaque server-side
 records in Postgres, not stateless JWTs, which makes revocation and
-active-session management plain queries instead of a blocklist workaround.
+active-session management plain queries.
 [@fastify/rate-limit](https://www.npmjs.com/package/@fastify/rate-limit)
 (11.1.0, published June 2026) covers per-route limits; lockout and security
 audit logging are ordinary tables and hooks.
 
-Authorization: hand-rolled RBAC (roles and permissions in Postgres, checked in
-a Fastify preHandler) covers the core, and the money rules (who may refund, who
-may reconcile, amount ceilings) are where ABAC earns its evaluation.
+Authorization: RBAC in application code (roles and permissions in Postgres,
+checked in a Fastify preHandler) covers the core, and the money rules (who may
+refund, who may reconcile, amount ceilings) are where ABAC earns its evaluation.
 [node-casbin](https://www.npmjs.com/package/casbin) (5.51.1, published June
 2026) and [Cerbos](https://github.com/cerbos/cerbos) (Apache-2.0 PDP) are both
 maintained; Cerbos as a sidecar is the right answer at team scale but adds a
-service. The pick is a hand-rolled policy module of pure, tested decision
-functions, with Cerbos named as the growth path.
+service. The pick is a policy module of pure, tested decision functions, with
+Cerbos named as the growth path.
 
 ### Decision
 
-Hand-roll the auth layer on Fastify from the primitives above, with server-side
-sessions, hand-rolled RBAC, and a small policy module for the payments rules.
-CSRF and CORS policy belongs to this layer too, since no framework supplies a
-default here: SameSite=Lax HttpOnly cookies, Origin validation on every
-state-changing route, and a credentialed CORS allowlist, with the payment
+Build the auth layer on Fastify from the primitives above, with server-side
+sessions, RBAC in application code, and a small policy module for the payments
+rules. CSRF and CORS policy belongs to this layer too, since no framework
+supplies a default here: SameSite=Lax HttpOnly cookies, Origin validation on
+every state-changing route, and a credentialed CORS allowlist, with the payment
 webhook route exempt because it authenticates by signature instead of cookies
 (details under "Cross-cutting decisions"). Document Auth0 as the deadline
 answer and better-auth as the fallback.
@@ -472,7 +472,7 @@ illustrates exactly the class of confusion a split session check invites. The
 conclusion for this project: with Next you operate a second server whose auth
 logic must not be trusted anyway, and you pay for it in cookie forwarding,
 cache discipline, and a second deployment. That is scope taken from the
-backend, which is the point of the portfolio.
+backend.
 
 ### React Router framework mode
 
@@ -594,10 +594,9 @@ the maintained drop-in for MailHog with the same default ports;
 [MailHog's last release was v1.0.1 in August 2020](https://github.com/mailhog/MailHog),
 while Mailpit shipped
 [v1.30.4 on July 9, 2026](https://github.com/axllent/mailpit/releases),
-including security fixes. The REST API is the real win: integration tests for
-email verification and password reset fetch the message and extract the token
-through it, so those flows get asserted end to end without a mail provider
-account.
+including security fixes. Integration tests for email verification and password
+reset fetch the message and extract the token through its REST API, so those
+flows get asserted end to end without a mail provider account.
 
 ### Env and secrets conventions
 
@@ -671,8 +670,8 @@ shape for this API.
 
 [Supabase's free plan](https://supabase.com/pricing) pauses projects after one
 week of inactivity, which is fatal for a portfolio opened weeks after the last
-commit. Its bundled auth also blurs the project's central claim of having built
-auth by hand. Pro at $25/month is out of budget.
+commit. Its bundled auth also overlaps the project's own auth domain. Pro at
+$25/month is out of budget.
 
 [Cloudflare Workers Free](https://developers.cloudflare.com/workers/platform/pricing/)
 allows 100k requests/day with cron triggers included, and the Paid plan is
@@ -721,7 +720,7 @@ SameSite=Lax works untouched, and no CORS configuration exists to get wrong.
 and has no domain-ownership requirement, so the `cloudfront.net` URL is a
 valid webhook target.
 
-One accepted weakness, stated rather than hidden: the CloudFront-to-ALB leg
+One accepted weakness: the CloudFront-to-ALB leg
 runs plain HTTP because the ALB cannot present a valid certificate on its
 default name. For a test environment this is tolerable with two mitigations
 (ALB ingress restricted to CloudFront's managed prefix list, and a
@@ -768,8 +767,8 @@ queue and alerting instead of a log line.
 ## Observability
 
 The project needs four things: structured logs, distributed traces, error
-tracking, and health checks. The bar is production-shaped, not
-production-scaled: a reviewer should see request-scoped correlation IDs, trace
+tracking, and health checks. The bar is production-shaped at demo
+scale: a reviewer should see request-scoped correlation IDs, trace
 context in logs, verified free-tier backends, and correct probe semantics,
 without the repo dragging around a self-hosted metrics stack that a solo demo
 cannot justify.
@@ -817,8 +816,8 @@ For backends: the primary trace store is
 docker compose file; v1 reached end of life on 2025-12-31 and v2 (2.19.0 at
 the time of checking; it releases roughly monthly) is a distribution of the
 OTel Collector, so using it also signals current knowledge. Since the deployed
-environment is ephemeral, a managed trace backend is optional rather than
-load-bearing; if one is wanted while the environment is up,
+environment is ephemeral, a managed trace backend is optional; if one is
+wanted while the environment is up,
 [Grafana Cloud's free tier](https://grafana.com/pricing/) (50 GB traces, 50 GB
 logs, 10k active metric series per month, 14-day retention) takes OTLP with no
 vendor lock, and beats
@@ -950,8 +949,9 @@ The platform decision is isolated in one step of one job. Primary path is AWS:
 The Fly path
 ([`superfly/flyctl-actions` with `flyctl deploy --remote-only` and an app-scoped deploy token](https://fly.io/docs/launch/continuous-deployment-with-github-actions/))
 is documented for the standing-demo alternative. Either way the job interface
-is the same: image in, migration step, traffic cutover. Workflow hygiene throughout: top-level `permissions: contents: read`,
-third-party actions pinned to commit SHAs.
+is the same: image in, migration step, traffic cutover. Workflow hygiene
+throughout: top-level `permissions: contents: read`, third-party actions pinned
+to commit SHAs.
 
 ### Accepted tradeoffs
 
@@ -1039,7 +1039,7 @@ named pick if a public demo with arbitrary recipients ever returns; that
 decision arrives together with the domain purchase.
 
 Accepted tradeoffs: no stranger can receive email from the deployed test
-environment, which is the point of the sandbox but means registration flows
+environment, which is what the sandbox is for but means registration flows
 there only work for verified addresses; the SES API is less ergonomic than
 Resend's and its failure notifications need an SNS integration rather than a
 plain webhook; and if the public-demo goal returns, the email decision reopens
@@ -1048,8 +1048,8 @@ with the domain purchase.
 ## Cross-cutting decisions
 
 Checking the ten decisions against each other surfaced problems that no single
-area owned. Each gets an owner here; the significant ones become ADRs in
-docs/DECISIONS.md when implementation starts.
+area owned. Each gets an owner here; the significant ones become ADRs when
+implementation starts.
 
 ### Cookie topology: one origin instead of a purchased domain
 
@@ -1075,9 +1075,8 @@ SPF records for real outbound email.
 
 ### CSRF, owned by the auth layer
 
-Hand-rolled cookie auth means no framework supplies these defaults, and a
-hand-built auth portfolio with an unhandled CSRF story fails review
-immediately. Per the
+Cookie auth in application code means no framework supplies these defaults, and
+an auth portfolio with an unhandled CSRF story fails review immediately. Per the
 [OWASP CSRF guidance](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html):
 SameSite=Lax as the baseline, plus Origin validation on every state-changing
 route (reject requests whose Origin header is not the app's own origin). The
@@ -1132,8 +1131,8 @@ The OpenAPI spec is generated from the Fastify route schemas via
 @fastify/swagger. The schemas already exist for request and reply validation,
 so the spec is a byproduct of code that must be written anyway, not a parallel
 artifact that drifts. The repo is a single npm-workspaces monorepo (api, web,
-shared types): one developer with one deploy pipeline gains nothing from
-separate repos or a heavier workspace tool, and a shared types package is the
+shared types): a single deploy pipeline gains nothing from separate repos or a
+heavier workspace tool, and a shared types package is the
 cheapest way to keep the SPA honest about API shapes.
 
 ### Environment strategy
@@ -1144,8 +1143,7 @@ No standing staging or demo environment. Each environment has its own Stripe
 sandbox because two ledgers must never consume one event stream; the sandbox
 association survives teardown, so a re-provisioned environment reconciles
 against the same provider history or starts from a fresh sandbox, and which of
-the two happens is an explicit choice in the deploy workflow, not an
-accident.
+the two happens is an explicit choice in the deploy workflow.
 
 ## Deferred to the plan
 

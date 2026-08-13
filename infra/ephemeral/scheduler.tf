@@ -1,4 +1,4 @@
-# The daily reconciliation run (ADR-024): EventBridge Scheduler starts a one-off
+# The daily reconciliation run: EventBridge Scheduler starts a one-off
 # ECS task from the same image with a command override, the same pattern the
 # deploy workflow uses for migrations. No queue, no live API instance involved;
 # the whole thing scales to zero with the rest of this stack.

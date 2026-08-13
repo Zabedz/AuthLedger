@@ -1,9 +1,8 @@
 # Threat model
 
 The threats this system defends against, and the code that defends against each.
-The point is not a checklist; it is that every mitigation below names a file you
-can open and read. Where a risk is accepted rather than mitigated, that is said
-plainly.
+Every mitigation below names a file you can open and read. Where a risk is
+accepted rather than mitigated, that is said plainly.
 
 ## Scope and assumptions
 
@@ -101,8 +100,7 @@ the backstop, not the first line.
 - Secrets come from the environment; production secrets live in AWS Secrets
   Manager (`infra/`), never in the repo. The config layer refuses a non-test
   Stripe key outside production (`api/src/config.ts`).
-- Authorization headers, cookies, and set-cookie are redacted from logs
-  (ADR-004).
+- Authorization headers, cookies, and set-cookie are redacted from logs.
 
 ### Auditability
 
@@ -119,4 +117,4 @@ account (docs/DATA.md).
   shared store. Single-instance today.
 - The payments browser click-through is not covered by an automated e2e, because
   Stripe Radar serves a captcha to automated browsers; settlement is proven by
-  server-side and API tests instead (SESSION_STATE, known issues).
+  server-side and API tests instead.

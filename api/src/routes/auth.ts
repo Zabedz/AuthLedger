@@ -102,9 +102,8 @@ export const authRoutes: FastifyPluginAsyncTypebox<RouteDeps> = async (
         return reply.code(401).send({ error: 'invalid credentials' });
       }
 
-      // Password verified. If MFA is on, stop here and set a challenge cookie
-      // instead of a session (ADR-010: the password-ok state is never a
-      // session row).
+      // Password verified. If MFA is on, stop here and set a challenge cookie;
+      // the password-ok state lives in that challenge.
       if (result.user.totp_enabled_at !== null) {
         await beginMfaChallenge({ config, db, enqueue }, reply, result.user.id, ctx);
         return reply.code(200).send({ mfa_required: true as const });

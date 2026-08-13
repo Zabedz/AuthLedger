@@ -137,7 +137,7 @@ export const oauthRoutes: FastifyPluginAsyncTypebox<OAuthDeps> = async (app, dep
       });
 
       // A linked account with MFA still owes a second factor: set the challenge
-      // cookie and send the browser to the SPA's MFA screen, never a session.
+      // cookie and send the browser to the SPA's MFA screen.
       if (user.totp_enabled_at !== null) {
         await beginMfaChallenge(deps, reply, user.id, ctx);
         return reply.redirect(`${config.appOrigin}/mfa`);

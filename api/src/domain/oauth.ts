@@ -68,7 +68,7 @@ async function googleConfig(
 
 function githubConfig(creds: OAuthProviderCredentials, fetchImpl?: FetchLike): Configuration {
   // GitHub is OAuth2, not OIDC: no discovery, no id_token, so the profile comes
-  // from its user API instead of id_token claims.
+  // from its user API.
   const config = new Configuration(
     {
       issuer: 'https://github.com',
@@ -158,8 +158,8 @@ interface GithubEmail {
 }
 
 export function githubClient(creds: OAuthProviderCredentials, fetchImpl?: FetchLike): OAuthClient {
-  // GitHub is OAuth2, not OIDC: the profile comes from its REST API, not an
-  // id_token, so the calls go through the same fetch the token exchange uses.
+  // The profile comes from GitHub's REST API, so those calls go through the
+  // same fetch the token exchange uses.
   const doFetch: FetchLike = fetchImpl ?? fetch;
   const apiHeaders = (accessToken: string) => ({
     authorization: `Bearer ${accessToken}`,

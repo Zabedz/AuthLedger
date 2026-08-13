@@ -47,7 +47,7 @@ describe('refund policy', () => {
     expect(d.allowed).toBe(true);
   });
 
-  it('denies a refund over the ceiling without the elevated capability', () => {
+  it('denies a refund over the ceiling without payments.refund_over_ceiling', () => {
     const d = canRefundPayment(actor('staff', 'payments.refund'), {
       ownerId: 'u1',
       amountMinor: REFUND_CEILING_MINOR + 1,
@@ -56,7 +56,7 @@ describe('refund policy', () => {
     expect(d.reason).toContain('ceiling');
   });
 
-  it('allows an over-ceiling refund when the elevated capability is present', () => {
+  it('allows an over-ceiling refund with payments.refund_over_ceiling', () => {
     const d = canRefundPayment(actor('lead', 'payments.refund', 'payments.refund_over_ceiling'), {
       ownerId: 'u1',
       amountMinor: REFUND_CEILING_MINOR + 1,

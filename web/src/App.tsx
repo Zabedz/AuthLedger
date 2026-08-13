@@ -533,10 +533,10 @@ function Dashboard({
   );
 }
 
-// Email verification runs on load: the link itself is the confirmation, no
-// extra click. Modeled as a query keyed by the token so React Query dedupes it
-// to a single request and caches the result across strict-mode's remount; a
-// plain effect would fire twice and the second call would hit a spent token.
+// Email verification runs on load: the link itself is the confirmation.
+// Modeled as a query keyed by the token so React Query dedupes it to a single
+// request and caches the result across strict-mode's remount; a plain effect
+// would fire twice and the second call would hit a spent token.
 function VerifyEmail() {
   const token = tokenFromUrl();
   const verify = useQuery({

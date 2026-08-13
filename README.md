@@ -1,20 +1,18 @@
 # AuthLedger
 
-Identity and payments in one production-shaped system: a hand-built
-authentication and authorization layer, and a Stripe-integrated payments domain
-with a double-entry ledger and reconciliation. The two domains intersect on
-purpose. Authorization decides who may initiate, view, refund, or reconcile a
-payment, so the money endpoints are born gated.
+Identity and payments in one production-shaped system: an authentication and
+authorization layer, and a Stripe-integrated payments domain with a double-entry
+ledger and reconciliation. The two domains intersect on purpose. Authorization
+decides who may initiate, view, refund, or reconcile a payment, so the money
+endpoints are born gated.
 
 ![The journey: register, verify by email, enroll and pass MFA](docs/media/journey.gif)
 
 A full screen-by-screen walkthrough with images is in
 [docs/TOUR.md](docs/TOUR.md).
 
-Nothing here is scaffolding output. The auth primitives, the RBAC engine, the
-webhook inbox, and the ledger are written by hand so the design decisions are
-visible; every stack choice and every decision made while building is recorded
-in [docs/RESEARCH.md](docs/RESEARCH.md) and [docs/DECISIONS.md](docs/DECISIONS.md).
+Every stack choice made while building is recorded in
+[docs/RESEARCH.md](docs/RESEARCH.md).
 
 ## What it does
 
@@ -90,10 +88,10 @@ functions.
 
 TypeScript on Node 24. Fastify v5 with `@sinclair/typebox` schemas at every
 boundary (the OpenAPI document is their byproduct). Postgres 18 with the Kysely
-query builder over hand-written SQL migrations (node-pg-migrate); query types
-are generated from the live schema and committed, and CI fails on drift. Vite +
-React + TanStack Query for the SPA. npm workspaces for `api`, `web`, and a
-`shared` package of schemas. Terraform for two AWS stacks split by lifecycle.
+query builder over SQL migrations (node-pg-migrate); query types are generated
+from the live schema and committed, and CI fails on drift. Vite + React +
+TanStack Query for the SPA. npm workspaces for `api`, `web`, and a `shared`
+package of schemas. Terraform for two AWS stacks split by lifecycle.
 
 ## Layout
 
@@ -103,7 +101,7 @@ React + TanStack Query for the SPA. npm workspaces for `api`, `web`, and a
 | `web/`    | Vite + React SPA and Playwright e2e                            |
 | `shared/` | TypeBox schemas and types shared between api and web           |
 | `infra/`  | Terraform: a persistent stack and an ephemeral stack           |
-| `docs/`   | Research, plan, threat model, data handling, and the ADRs      |
+| `docs/`   | Research, tour, runbook, threat model, and data handling      |
 
 ## Running locally
 
@@ -169,8 +167,6 @@ and every table's row count.
 - [docs/TOUR.md](docs/TOUR.md) - the app screen by screen, with images.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) - the runbook: run, test, observe,
   deploy, recover.
-- [docs/PLAN.md](docs/PLAN.md) - the milestone plan, M0 through M8.
-- [docs/DECISIONS.md](docs/DECISIONS.md) - architecture decision records.
 - [docs/THREATMODEL.md](docs/THREATMODEL.md) - assets, trust boundaries, and
   mitigations mapped to the code that implements them.
 - [docs/DATA.md](docs/DATA.md) - what is stored, why, and for how long.

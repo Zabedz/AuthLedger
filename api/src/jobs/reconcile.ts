@@ -68,8 +68,7 @@ const exitCode = await run();
 
 // Cleanup must never overwrite the run's outcome: stopTracing rejects when the
 // collector is unreachable at the final flush, and an unhandled rejection here
-// would turn a clean run into exit 1. Log and move on; the exit code is the
-// run's, not the teardown's.
+// would turn a clean run into exit 1. Log and move on.
 for (const [name, step] of [
   ['pool.end', () => pool.end()],
   ['stopTracing', stopTracing],

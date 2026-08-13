@@ -49,7 +49,7 @@ async function auditKinds() {
   return rows.map((r) => r.event);
 }
 
-// The MFA challenge rides in an HttpOnly al_mfa cookie now, not the body.
+// The MFA challenge rides in an HttpOnly al_mfa cookie.
 function mfaCookieOf(res: { headers: Record<string, unknown> }): string {
   const setCookie = res.headers['set-cookie'];
   const lines = Array.isArray(setCookie) ? setCookie : [String(setCookie)];

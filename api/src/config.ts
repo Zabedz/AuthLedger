@@ -69,8 +69,9 @@ const DEV_ENCRYPTION_KEY = Buffer.alloc(32, 7);
 function safeOrigin(value: string): string | null {
   try {
     return new URL(value).origin;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof TypeError) return null;
+    throw err;
   }
 }
 

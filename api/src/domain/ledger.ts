@@ -25,7 +25,7 @@ export async function postEntry(
   entry: { kind: LedgerEntryKind; reference: string; currency: string; postings: Posting[] },
 ): Promise<boolean> {
   // Reject before touching the database, so a caller error is a clear domain
-  // error and never a half-written entry. The database enforces the same rule.
+  // error. The database enforces the same rule.
   const imbalance = entry.postings.reduce((sum, p) => sum + p.amountMinor, 0);
   if (entry.postings.length === 0 || imbalance !== 0) {
     throw new Error(

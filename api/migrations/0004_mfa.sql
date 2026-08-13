@@ -1,5 +1,5 @@
--- TOTP secret is AES-256-GCM ciphertext (iv, auth tag, ciphertext), never
--- plaintext. totp_enabled_at is set only after a code is confirmed, so a
+-- TOTP secret is AES-256-GCM ciphertext (iv, auth tag, ciphertext).
+-- totp_enabled_at is set only after a code is confirmed, so a
 -- stored-but-unconfirmed secret does not gate login.
 ALTER TABLE users ADD COLUMN totp_secret bytea;
 ALTER TABLE users ADD COLUMN totp_enabled_at timestamptz;
@@ -18,9 +18,9 @@ CREATE TABLE mfa_recovery_codes (
 
 CREATE INDEX mfa_recovery_codes_user_idx ON mfa_recovery_codes (user_id);
 
--- The password-ok-awaiting-second-factor state (ADR-010): a short-lived,
+-- The password-ok-awaiting-second-factor state: a short-lived,
 -- single-use token issued after the password check, exchanged for a session
--- once the second factor verifies. Never a flag on a session row.
+-- once the second factor verifies.
 CREATE TABLE mfa_challenges (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,

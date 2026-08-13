@@ -65,22 +65,22 @@ export async function assignRole(
   grantedBy: string | null,
 ): Promise<boolean> {
   const roleId = await roleIdByName(db, role);
-  const result = await db
+  const inserted = await db
     .insertInto('user_roles')
     .values({ user_id: userId, role_id: roleId, granted_by: grantedBy })
     .onConflict((oc) => oc.columns(['user_id', 'role_id']).doNothing())
     .executeTakeFirst();
-  return Number(result.numInsertedOrUpdatedRows ?? 0n) > 0;
+  return Number(inserted.numInsertedOrUpdatedRows ?? 0n) > 0;
 }
 
 export async function revokeRole(db: Kysely<DB>, userId: string, role: RoleName): Promise<boolean> {
   const roleId = await roleIdByName(db, role);
-  const result = await db
+  const deleted = await db
     .deleteFrom('user_roles')
     .where('user_id', '=', userId)
     .where('role_id', '=', roleId)
     .executeTakeFirst();
-  return Number(result.numDeletedRows ?? 0n) > 0;
+  return Number(deleted.numDeletedRows ?? 0n) > 0;
 }
 
 // True when this user is the only holder of admin, so revoking it would leave

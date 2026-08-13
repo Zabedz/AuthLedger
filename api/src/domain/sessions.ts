@@ -91,7 +91,7 @@ export async function revokeSession(
   sessionId: string,
   userId: string,
 ): Promise<boolean> {
-  const result = await db
+  const revoked = await db
     .updateTable('sessions')
     .set({ revoked_at: new Date() })
     .where('id', '=', sessionId)
@@ -99,7 +99,7 @@ export async function revokeSession(
     .where('revoked_at', 'is', null)
     .executeTakeFirst();
 
-  return result.numUpdatedRows > 0n;
+  return revoked.numUpdatedRows > 0n;
 }
 
 // Revokes every live session for a user, optionally sparing one (the session
@@ -119,8 +119,8 @@ export async function revokeAllSessions(
     query = query.where('id', '!=', exceptSessionId);
   }
 
-  const result = await query.executeTakeFirst();
-  return Number(result.numUpdatedRows);
+  const revoked = await query.executeTakeFirst();
+  return Number(revoked.numUpdatedRows);
 }
 
 export async function listLiveSessions(db: Kysely<DB>, userId: string): Promise<Session[]> {

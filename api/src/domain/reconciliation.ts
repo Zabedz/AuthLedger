@@ -66,7 +66,7 @@ export async function reconcile(
     // gross amount. A converted one (a usd charge on a gbp account arrives as
     // gbp) can be compared on neither, since its gross is a different currency
     // from the ledger's presentment gross; exchange-rate verification is
-    // deferred (ADR-025).
+    // deferred.
     if (settlement.intentId) {
       const posting = await db
         .selectFrom('ledger_entries')
@@ -101,8 +101,7 @@ export async function reconcile(
   return { checked: settlements.length, feesPostedMinor, discrepancies };
 }
 
-// Bounds the recorded failure text: enough to diagnose, never a full provider
-// response body.
+// Bounds the recorded failure text to what diagnosing the run needs.
 const ERROR_TEXT_MAX = 500;
 
 async function recordFailedRun(db: Kysely<DB>, err: unknown): Promise<void> {
@@ -127,9 +126,10 @@ const WATERMARK_OVERLAP_S = 3600;
 // A loud bound, far above this project's volume. A window that still has more
 // after this many pages fails the run rather than silently under-scanning.
 const MAX_PAGES = 10;
+const PAGE_SIZE = 100;
 
 // The provider transactions to reconcile: windowed on the newest successful
-// run (ADR-025) and paged on has_more. The first run ever scans one unwindowed
+// run and paged on has_more. The first run ever scans one unwindowed
 // page, which covers the account's whole test history at this volume.
 async function listBalanceTransactions(
   db: Kysely<DB>,
@@ -143,7 +143,10 @@ async function listBalanceTransactions(
     .limit(1)
     .executeTakeFirst();
 
-  const params: Stripe.BalanceTransactionListParams = { limit: 100, expand: ['data.source'] };
+  const params: Stripe.BalanceTransactionListParams = {
+    limit: PAGE_SIZE,
+    expand: ['data.source'],
+  };
   if (lastOk) {
     params.created = {
       gte: Math.floor(lastOk.ran_at.getTime() / 1000) - WATERMARK_OVERLAP_S,
@@ -156,7 +159,7 @@ async function listBalanceTransactions(
   // The unwindowed first run stops at one page no matter what: paging a large
   // history into the cap would fail the run, a failed run never sets the
   // watermark, and every retry would repeat the same full scan. One page seeds
-  // the watermark; older history is a manual concern, as ADR-025 accepts.
+  // the watermark; older history is a manual concern, accepted deliberately.
   if (!lastOk) {
     return txns;
   }
@@ -164,7 +167,7 @@ async function listBalanceTransactions(
   while (page.has_more) {
     if (pages >= MAX_PAGES) {
       throw new Error(
-        `reconciliation window holds more than ${MAX_PAGES * 100} balance transactions; ` +
+        `reconciliation window holds more than ${MAX_PAGES * PAGE_SIZE} balance transactions; ` +
           'refusing to under-scan silently',
       );
     }

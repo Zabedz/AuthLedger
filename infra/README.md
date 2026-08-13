@@ -1,7 +1,7 @@
 # Infrastructure
 
 Terraform-dialect HCL, compatible with Terraform >= 1.4 and OpenTofu. Two
-root modules split by lifecycle (ADR-008):
+root modules split by lifecycle:
 
 - `persistent/`: survives teardown at near-zero idle cost. ECR, the SPA
   bucket, the CloudFront distribution (the stable public URL), the GitHub
@@ -105,7 +105,7 @@ runs against the newer schema. The ECS deployment circuit breaker also rolls
 a failing service update back automatically. Data rollback: the environment
 is disposable, so `migrate:down` for a bad migration caught early, teardown
 plus stand-up for anything worse. Exercise one rollback when the environment
-first goes up (PLAN M1 acceptance).
+first goes up.
 
 ## Accepted weakness
 

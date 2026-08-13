@@ -10,9 +10,9 @@ import { buildServer } from './server.js';
 // plugins/openapi.ts). Capturing it as a committed artifact, and checking it
 // for drift in CI, is the same discipline the generated query types follow.
 //
-// A fixed dev config makes the output depend only on the code, not on whatever
-// keys sit in a local .env. buildServer registers routes and hooks but issues
-// no query at ready(), so the pool is never connected.
+// A fixed dev config makes the output depend only on the code. buildServer
+// registers routes and hooks but issues no query at ready(), so the pool is
+// never connected.
 const config = loadConfig({ NODE_ENV: 'development', DATABASE_URL: 'postgres://openapi-gen' });
 const pool = createPool(config.databaseUrl);
 const db = createDb(pool);

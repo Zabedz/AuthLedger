@@ -25,8 +25,7 @@ export interface JobRunner extends EmailEnqueuer {
 }
 
 // pg-boss owns retries and the schedule; the handlers are the same functions
-// the tests exercise directly, so the queue adds delivery and timing, not
-// logic.
+// the tests exercise directly, so the queue adds delivery and timing.
 export function createJobRunner(
   connectionString: string,
   db: Kysely<DB>,

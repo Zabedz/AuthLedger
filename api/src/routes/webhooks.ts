@@ -98,7 +98,7 @@ export const webhookRoutes: FastifyPluginAsyncTypebox<WebhookDeps> = async (app,
       }
 
       // Claim and process atomically: a failure rolls the claim back so the
-      // SNS redelivery reprocesses rather than finding the id already seen.
+      // SNS redelivery reprocesses.
       await db.transaction().execute(async (trx) => {
         const claim = await trx
           .insertInto('processed_sns_messages')

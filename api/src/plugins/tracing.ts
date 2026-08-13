@@ -39,7 +39,7 @@ export function registerHttpTracing(app: FastifyInstance): void {
     }
     req.otelSpan = undefined;
     // The matched route template keeps the name low-cardinality; an unmatched
-    // request (a 404) has no template, so label it once instead of by raw path.
+    // request (a 404) has no template, so label it once.
     const route = req.routeOptions.url;
     span.updateName(`${req.method} ${route ?? 'unmatched'}`);
     if (route) {

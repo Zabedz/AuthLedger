@@ -14,7 +14,7 @@ resource "aws_lb_target_group" "api" {
 
   health_check {
     # Liveness only; a DB-touching probe would turn an RDS blip into a task
-    # replacement loop (ADR-007).
+    # replacement loop.
     path                = "/api/healthz"
     interval            = 15
     healthy_threshold   = 2
