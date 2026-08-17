@@ -12,20 +12,20 @@
   },
   "dependencies": {
     "@authledger/shared": "*",
-    "@stripe/react-stripe-js": "^6.7.0",
-    "@stripe/stripe-js": "^9.9.0",
-    "@tanstack/react-query": "^5.101.2",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "@stripe/react-stripe-js": "^6.8.1",
+    "@stripe/stripe-js": "^9.13.0",
+    "@tanstack/react-query": "^5.101.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "otplib": "^13.4.1",
-    "pg": "^8.22.0",
-    "vite": "^8.1.4"
+    "pg": "^8.23.0",
+    "vite": "^8.2.1"
   }
 }
